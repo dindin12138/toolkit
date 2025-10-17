@@ -27,6 +27,16 @@
             ninja
             bear
             pkg-config
+
+            # Test framework criterion
+            criterion
+            boxfort
+            libffi
+            libgit2
+            openssl
+            pcre2
+            zlib
+            nanomsg
           ];
 
           clangShell = (pkgs.mkShell.override { stdenv = llvm.stdenv; }) {
