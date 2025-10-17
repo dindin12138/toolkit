@@ -80,7 +80,6 @@ Test(vec_suite, capacity_and_clear) {
 }
 
 Test(vec_suite, reserve_edge_cases) {
-  // 1. 预留一些容量并填充部分数据
   tk_vec_reserve(vec, 10);
   cr_assert_geq(tk_vec_capacity(vec), 10);
   for (int i = 0; i < 5; ++i) {
@@ -89,14 +88,9 @@ Test(vec_suite, reserve_edge_cases) {
   cr_assert_eq(tk_vec_size(vec), 5);
   size_t old_capacity = tk_vec_capacity(vec);
 
-  // 2. 测试: 请求一个小于当前容量但大于当前大小的容量
-  // 预期: stb_ds
-  // 可能会也可能不会收缩，但我们的API不保证收缩，所以我们只检查容量没有变得更小
   tk_vec_reserve(vec, 8);
   cr_assert_geq(tk_vec_capacity(vec), 8, "Capacity should still be sufficient");
 
-  // 3. 测试: 请求一个小于当前元素数量的容量
-  // 预期: 这是一个关键测试！容量和大小都绝对不能改变，否则会丢失数据。
   old_capacity = tk_vec_capacity(vec);
   tk_vec_reserve(vec, 3);
   cr_assert_eq(tk_vec_size(vec), 5,
@@ -104,7 +98,6 @@ Test(vec_suite, reserve_edge_cases) {
   cr_assert_eq(tk_vec_capacity(vec), old_capacity,
                "Capacity should not shrink below size");
 
-  // 4. 测试: reserve(0)
   tk_vec_reserve(vec, 0);
   cr_assert_eq(tk_vec_size(vec), 5, "Size should not change when reserving 0");
 }

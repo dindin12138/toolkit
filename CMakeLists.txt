@@ -13,39 +13,6 @@ target_include_directories(tk PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/vendor")
 
 target_include_directories(tk PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-# option(TOOLKIT_BUILD_TESTS "Build the toolkit tests" ON)
-#
-# if(TOOLKIT_BUILD_TESTS) enable_testing() if(EXISTS
-# "${CMAKE_SOURCE_DIR}/test/ds/test_vec.c") add_executable(test_vec
-# test/ds/test_vec.c) target_link_libraries(test_vec PRIVATE tk) add_test(NAME
-# VecTests COMMAND test_vec) endif() endif()
-
-# --- Testing Configuration with Criterion and PkgConfig ---
-
-# Define a user-configurable option to enable or disable the building of tests.
-# option(TOOLKIT_BUILD_TESTS "Build the toolkit tests" ON)
-#
-# if(TOOLKIT_BUILD_TESTS) # Enable CTest, CMake's built-in testing framework.
-# enable_testing()
-#
-# find_package(PkgConfig REQUIRED)
-#
-# pkg_check_modules(Criterion REQUIRED criterion)
-#
-# set(TEST_SOURCE_FILE "${CMAKE_SOURCE_DIR}/test/ds/test_vec.c")
-#
-# if(EXISTS "${TEST_SOURCE_FILE}") # Define an executable target for our test
-# runner. add_executable(test_runner ${TEST_SOURCE_FILE})
-#
-# target_include_directories(test_runner PRIVATE ${Criterion_INCLUDE_DIRS})
-#
-# target_link_libraries(test_runner PRIVATE tk ${Criterion_LIBRARIES})
-#
-# # Register the executable as a test case with CTest. add_test(NAME
-# ToolkitTests COMMAND test_runner) endif() endif()
-
-# --- Testing Configuration (Scalable and Compatible Version) ---
-
 option(TOOLKIT_BUILD_TESTS "Build the toolkit tests" ON)
 
 if(TOOLKIT_BUILD_TESTS)
