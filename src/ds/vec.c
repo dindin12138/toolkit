@@ -18,6 +18,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <tk/core/iterator.h>
 #include <tk/core/macros.h>
 #include <tk/ds/vec.h>
 
@@ -169,4 +170,110 @@ void tk_vec_clear(tk_vec_t *vec) {
   // This is inherently correct, as setting the byte-length to 0 clears the
   // vector regardless of element size.
   arrsetlen(vec->stb_array, 0);
+}
+
+// --- Iterator Implementation ---
+
+/**
+ * @brief Private state for a tk_vec_t iterator.
+ *
+ * This struct fits within the 32-byte SBO buffer of tk_iterator_t.
+ */
+typedef struct {
+  char *ptr;           // Pointer to the current element (8 bytes)
+  size_t element_size; // Size of one element (8 bytes)
+} tk_vec_iter_state_t;
+
+// --- vtable function implementations ---
+
+/**
+ * @brief (vtable) Advances the vector iterator to the next element.
+ */
+static void tk_vec_iter_advance(tk_iterator_t *self) {
+  // Get the private state from the SBO buffer
+  tk_vec_iter_state_t *state = (tk_vec_iter_state_t *)self->state.data;
+  // Advance the pointer by one element size
+  state->ptr += state->element_size;
+}
+
+/**
+ * @brief (vtable) Gets the data pointer from the vector iterator.
+ */
+static void *tk_vec_iter_get(const tk_iterator_t *self) {
+  // Get the private state
+  const tk_vec_iter_state_t *state =
+      (const tk_vec_iter_state_t *)self->state.data;
+  // Return the pointer to the data
+  return state->ptr;
+}
+
+/**
+ * @brief (vtable) Checks if two vector iterators are equal.
+ */
+static tk_bool tk_vec_iter_equal(const tk_iterator_t *iter1,
+                                 const tk_iterator_t *iter2) {
+  // Get the private state for both iterators
+  const tk_vec_iter_state_t *state1 =
+      (const tk_vec_iter_state_t *)iter1->state.data;
+  const tk_vec_iter_state_t *state2 =
+      (const tk_vec_iter_state_t *)iter2->state.data;
+  // They are equal if their data pointers are the same.
+  //    (We assume element_size is the same since the vtable is the same,
+  //     which is already checked by the public tk_iter_equal).
+  return state1->ptr == state2->ptr;
+}
+
+/**
+ * @brief (vtable) Clones a vector iterator.
+ */
+static void tk_vec_iter_clone(tk_iterator_t *dest, const tk_iterator_t *src) {
+  // The simplest, fastest way to clone is to copy the entire struct.
+  // This copies both the vtable pointer and the 32-byte state union.
+  *dest = *src;
+}
+
+/**
+ * @brief The single, static vtable for all tk_vec_t iterators.
+ * This connects the generic iterator interface to our specific
+ * functions.
+ */
+static const tk_iterator_vtable_t g_vec_vtable = {.advance =
+                                                      tk_vec_iter_advance,
+                                                  .get = tk_vec_iter_get,
+                                                  .equal = tk_vec_iter_equal,
+                                                  .clone = tk_vec_iter_clone};
+
+// --- Public iterator function implementations ---
+
+tk_iterator_t tk_vec_begin(tk_vec_t *vec) {
+  TK_ASSERT(vec);
+  tk_iterator_t iter;
+  // Point to the correct "instruction manual" (vtable)
+  iter.vtable = &g_vec_vtable;
+
+  // Get the pointer to the internal state buffer
+  tk_vec_iter_state_t *state = (tk_vec_iter_state_t *)iter.state.data;
+
+  // Fill the state
+  state->element_size = vec->element_size;
+  state->ptr = vec->stb_array; // 'stb_array' points to the first element
+
+  return iter;
+}
+
+tk_iterator_t tk_vec_end(tk_vec_t *vec) {
+  TK_ASSERT(vec);
+  tk_iterator_t iter;
+  // Point to the correct vtable
+  iter.vtable = &g_vec_vtable;
+
+  // Get the state buffer pointer
+  tk_vec_iter_state_t *state = (tk_vec_iter_state_t *)iter.state.data;
+
+  // Fill the state
+  state->element_size = vec->element_size;
+  // The "end" iterator points *past* the last element.
+  state->ptr = vec->stb_array + (tk_vec_size(vec) * vec->element_size);
+
+  return iter;
 }

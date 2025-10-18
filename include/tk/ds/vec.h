@@ -10,6 +10,7 @@
 #define TOOLKIT_VEC_H
 
 #include <tk/core/error.h>
+#include <tk/core/iterator.h>
 #include <tk/core/types.h>
 
 // Forward declaration of the opaque structure. The user never knows its
@@ -112,5 +113,21 @@ void tk_vec_pop_back(tk_vec_t *vec);
  * @param vec A pointer to the vector handle.
  */
 void tk_vec_clear(tk_vec_t *vec);
+
+// --- Iterator Functions ---
+
+/**
+ * @brief Returns a polymorphic iterator pointing to the first element.
+ * @param vec A pointer to the vector.
+ * @return A `tk_iterator_t` pointing to the beginning of the vector.
+ */
+tk_iterator_t tk_vec_begin(tk_vec_t *vec);
+
+/**
+ * @brief Returns a polymorphic iterator pointing past the last element.
+ * @param vec A pointer to the vector.
+ * @return A `tk_iterator_t` pointing to the end boundary of the vector.
+ */
+tk_iterator_t tk_vec_end(tk_vec_t *vec);
 
 #endif // MY_TOOLKIT_VEC_H

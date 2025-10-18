@@ -10,6 +10,7 @@
 #include <criterion/new/assert.h> // Modern assertion macros (eq, ne, etc.)
 #include <stdio.h>
 #include <string.h> // For strcmp in struct test
+#include <tk/core/iterator.h>
 #include <tk/ds/vec.h>
 
 // --- Test Fixture for Integer Vector ---
@@ -100,6 +101,81 @@ Test(vec_suite, reserve_edge_cases) {
 
   tk_vec_reserve(vec, 0);
   cr_assert_eq(tk_vec_size(vec), 5, "Size should not change when reserving 0");
+}
+
+/**
+ * @brief This test validates the entire iterator protocol implementation
+ * for tk_vec_t.
+ *
+ * It checks:
+ * 1. `begin()` and `end()` on an empty vector.
+ * 2. `begin()`, `end()`, `next()`, `get()`, and `equal()` on a populated
+ * vector.
+ * 3. `clone()` and its independence from the original iterator.
+ */
+Test(vec_suite, iterators) {
+  // 1. Test empty vector
+  // The 'vec' is empty right after setup()
+  tk_iterator_t begin_empty = tk_vec_begin(vec);
+  tk_iterator_t end_empty = tk_vec_end(vec);
+  cr_assert(tk_iter_equal(&begin_empty, &end_empty),
+            "begin() and end() should be equal on an empty vector");
+
+  // 2. Test populated vector
+  int v1 = 10, v2 = 20, v3 = 30;
+  tk_vec_push_back(vec, &v1);
+  tk_vec_push_back(vec, &v2);
+  tk_vec_push_back(vec, &v3);
+
+  int expected_values[] = {10, 20, 30};
+  int i = 0;
+
+  tk_iterator_t it = tk_vec_begin(vec);
+  tk_iterator_t end = tk_vec_end(vec);
+
+  // Assert begin and end are NOT equal
+  cr_assert(tk_iter_equal(&it, &end) == false,
+            "begin() and end() should not be equal on a populated vector");
+
+  // 3. Test tk_iter_clone()
+  tk_iterator_t clone_it;
+  tk_iter_clone(&clone_it, &it);
+  cr_assert(tk_iter_equal(&clone_it, &it), "Cloned iterator should be equal to "
+                                           "its source");
+
+  // Advance the original iterator
+  tk_iter_next(&it);
+  // They should no longer be equal
+  cr_assert(tk_iter_equal(&clone_it, &it) == false,
+            "Cloned iterator should be independent of its source after "
+            "advancing");
+  // The clone should still point to the first element
+  cr_assert_eq(*(int *)tk_iter_get(&clone_it), 10,
+               "Cloned iterator did not retain the correct position");
+
+  // Reset 'it' to begin for the main loop test
+  it = tk_vec_begin(vec);
+
+  // 4. Test the core iteration loop (next, get, equal)
+  while (!tk_iter_equal(&it, &end)) {
+    // Check against out-of-bounds loop
+    cr_assert_lt(i, 3, "Iterator loop ran too many times");
+
+    // Test tk_iter_get()
+    void *data = tk_iter_get(&it);
+    cr_assert_not_null(data, "tk_iter_get() returned NULL");
+    cr_assert_eq(*(int *)data, expected_values[i],
+                 "Iterator value mismatch at index %d", i);
+
+    // Test tk_iter_next()
+    tk_iter_next(&it);
+    i++;
+  }
+
+  // 5. Final validation
+  cr_assert_eq(i, 3, "Iterator did not loop the correct number of times");
+  cr_assert(tk_iter_equal(&it, &end),
+            "Iterator did not equal end() after the loop");
 }
 
 // --- Standalone Miscellaneous Tests ---
