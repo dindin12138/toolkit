@@ -10,10 +10,10 @@
  * A user can simply #include <tk/algo/algo.h> to get all generic
  * algorithms provided by the toolkit.
  */
-#ifndef TOOLKIT_ALGO_H
-#define TOOLKIT_ALGO_H
+#ifndef TOOLKIT_ALGO_ALGO_H
+#define TOOLKIT_ALGO_ALGO_H
 
 // Include all algorithm modules
 #include <tk/algo/sequence.h>
 
-#endif // TOOLKIT_ALGO_H
+#endif // TOOLKIT_ALGO_ALGO_H

@@ -3,8 +3,8 @@
  * @brief Provides a set of common, highly-reused utility macros for the
  * toolkit.
  */
-#ifndef TOOLKIT_MACROS_H
-#define TOOLKIT_MACROS_H
+#ifndef TOOLKIT_CORE_MACROS_H
+#define TOOLKIT_CORE_MACROS_H
 
 #include <tk/core/types.h> // For size_t via <stddef.h>
 
@@ -46,4 +46,4 @@
   ((type *)((char *)(ptr) - offsetof(type, member)))
 #endif
 
-#endif // MY_TOOLKIT_MACROS_H
+#endif // TOOLKIT_CORE_MACROS_H

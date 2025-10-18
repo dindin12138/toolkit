@@ -7,8 +7,8 @@
  * tk_error_t. A return value of TK_SUCCESS (which is 0) indicates success,
  * while any non-zero value indicates an error.
  */
-#ifndef TOOLKIT_ERROR_H
-#define TOOLKIT_ERROR_H
+#ifndef TOOLKIT_CORE_ERROR_H
+#define TOOLKIT_CORE_ERROR_H
 
 #include <tk/core/types.h>
 
@@ -72,4 +72,4 @@ typedef enum {
  */
 const char *tk_strerror(tk_error_t err);
 
-#endif // TOOLKIT_ERROR_H
+#endif // TOOLKIT_CORE_ERROR_H

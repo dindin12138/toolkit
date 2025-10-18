@@ -6,8 +6,8 @@
  * other modules use a consistent and explicit set of basic types for sizes,
  * boolean logic, and integer widths.
  */
-#ifndef TOOLKIT_TYPES_H
-#define TOOLKIT_TYPES_H
+#ifndef TOOLKIT_CORE_TYPES_H
+#define TOOLKIT_CORE_TYPES_H
 
 #include <stdbool.h> // For the standard 'bool' type (requires C99 or later)
 #include <stddef.h>  // For size_t and NULL
@@ -21,4 +21,4 @@
  */
 typedef bool tk_bool;
 
-#endif // TOOLKIT_TYPES_H
+#endif // TOOLKIT_CORE_TYPES_H

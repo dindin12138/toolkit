@@ -15,8 +15,8 @@
  * `tk_iterator_t` interface and have no knowledge of the underlying
  * container (e.g., `tk_vec_t`).
  */
-#ifndef TOOLKIT_SEQUENCE_H
-#define TOOLKIT_SEQUENCE_H
+#ifndef TOOLKIT_ALGO_SEQUENCE_H
+#define TOOLKIT_ALGO_SEQUENCE_H
 
 #include <tk/core/iterator.h>
 #include <tk/core/types.h>
@@ -64,4 +64,4 @@ tk_algo_find_if(tk_iterator_t begin, tk_iterator_t end,
   return end;
 }
 
-#endif // TOOLKIT_SEQUENCE_H
+#endif // TOOLKIT_ALGO_SEQUENCE_H

@@ -6,8 +6,8 @@
  * It is implemented using an opaque pointer (tk_vec_t) to hide the underlying
  * implementation details, providing a stable and consistent interface.
  */
-#ifndef TOOLKIT_VEC_H
-#define TOOLKIT_VEC_H
+#ifndef TOOLKIT_DS_VEC_H
+#define TOOLKIT_DS_VEC_H
 
 #include <tk/core/error.h>
 #include <tk/core/iterator.h>
@@ -130,4 +130,4 @@ tk_iterator_t tk_vec_begin(tk_vec_t *vec);
  */
 tk_iterator_t tk_vec_end(tk_vec_t *vec);
 
-#endif // MY_TOOLKIT_VEC_H
+#endif // TOOLKIT_DS_VEC_H

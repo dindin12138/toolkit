@@ -17,8 +17,8 @@
  * (which advances by following a 'next' pointer), without the algorithm
  * needing to know the difference.
  */
-#ifndef TOOLKIT_ITERATOR_H
-#define TOOLKIT_ITERATOR_H
+#ifndef TOOLKIT_CORE_ITERATOR_H
+#define TOOLKIT_CORE_ITERATOR_H
 
 #include <tk/core/types.h>
 
@@ -141,4 +141,4 @@ static inline void tk_iter_clone(tk_iterator_t *dest,
   src->vtable->clone(dest, src);
 }
 
-#endif // TOOLKIT_ITERATOR_H
+#endif // TOOLKIT_CORE_ITERATOR_H
