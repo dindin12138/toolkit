@@ -96,6 +96,14 @@ typedef struct {
    */
   void (*clone)(tk_iterator_t *dest, const tk_iterator_t *src);
 
+  /**
+   * @brief (Optional) Retreats the iterator 'self' to the previous element.
+   * MUST be implemented if category is TK_ITER_BIDIRECTIONAL or
+   * TK_ITER_RANDOM_ACCESS. Can be NULL otherwise.
+   * @param self A pointer to the iterator to be retreated.
+   */
+  void (*retreat)(tk_iterator_t *self); // <-- Add this line
+
 } tk_iterator_vtable_t;
 
 /**
@@ -119,7 +127,8 @@ typedef struct {
    .advance = PREFIX##_advance,                                                \
    .get = PREFIX##_get,                                                        \
    .equal = PREFIX##_equal,                                                    \
-   .clone = PREFIX##_clone}
+   .clone = PREFIX##_clone,                                                    \
+   .retreat = ((CATEGORY) >= TK_ITER_BIDIRECTIONAL) ? PREFIX##_retreat : NULL}
 
 /**
  * @brief The unified, polymorphic iterator type.
@@ -168,6 +177,8 @@ tk_iterator_vtable_validate(const tk_iterator_vtable_t *vtable) {
   TK_ASSERT(vtable->equal != NULL);
   TK_ASSERT(vtable->clone != NULL);
   TK_ASSERT(vtable->type_name != NULL);
+  TK_ASSERT((vtable->category < TK_ITER_BIDIRECTIONAL) ||
+            (vtable->retreat != NULL));
 }
 
 /**
@@ -213,6 +224,19 @@ static inline tk_bool tk_iter_equal(const tk_iterator_t *iter1,
 static inline void tk_iter_clone(tk_iterator_t *dest,
                                  const tk_iterator_t *src) {
   src->vtable->clone(dest, src);
+}
+
+/**
+ * @brief Retreats the iterator to the previous element.
+ * (Calls the vtable's 'retreat' function).
+ * Asserts that the iterator is at least bidirectional.
+ * @param iter A pointer to the iterator to retreat.
+ */
+static inline void tk_iter_prev(tk_iterator_t *iter) {
+  TK_ASSERT(iter->vtable->category >=
+            TK_ITER_BIDIRECTIONAL);         // Ensure capability
+  TK_ASSERT(iter->vtable->retreat != NULL); // Ensure function exists
+  iter->vtable->retreat(iter);
 }
 
 #endif // TOOLKIT_CORE_ITERATOR_H

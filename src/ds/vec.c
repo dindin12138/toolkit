@@ -222,6 +222,17 @@ static void tk_vec_iter_advance(tk_iterator_t *self) {
 }
 
 /**
+ * @brief (vtable) Retreats the vector iterator to the previous element.
+ * Required for TK_ITER_RANDOM_ACCESS >= TK_ITER_BIDIRECTIONAL.
+ */
+static void tk_vec_iter_retreat(tk_iterator_t *self) {
+  // Get the private state from the SBO buffer
+  tk_vec_iter_state_t *state = (tk_vec_iter_state_t *)self->state.data;
+  // Retreat the pointer by one element size
+  state->ptr -= state->element_size;
+}
+
+/**
  * @brief (vtable) Gets the data pointer from the vector iterator.
  */
 static void *tk_vec_iter_get(const tk_iterator_t *self) {

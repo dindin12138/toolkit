@@ -37,10 +37,9 @@ cmake --build build
 The tests use the Criterion framework.
 
 ```bash
-# From the build directory
-cmake -DTOOLKIT_BUILD_TESTS=ON ..
-make
-ctest
+cmake -S . -B build -DTOOLKIT_BUILD_TESTS=ON
+cmake --build build
+ctest --test-dir build
 ```
 
 ## Future Goals
