@@ -19,6 +19,7 @@
 #define TOOLKIT_ALGO_SEQUENCE_H
 
 #include <tk/core/iterator.h>
+#include <tk/core/macros.h>
 #include <tk/core/types.h>
 
 /**
@@ -43,6 +44,17 @@
 static inline tk_iterator_t
 tk_algo_find_if(tk_iterator_t begin, tk_iterator_t end,
                 tk_bool (*predicate)(const void *element)) {
+
+  // Debug-mode type safety check.
+  // Asserts that the begin and end iterators are not NULL and are of the
+  // same type.
+  TK_ASSERT(begin.vtable != NULL && end.vtable != NULL &&
+            "tk_algo_find_if: Iterators must not have NULL vtables.");
+  TK_ASSERT(begin.vtable == end.vtable &&
+            "tk_algo_find_if: 'begin' and 'end' iterators are from "
+            "different container types.");
+  // Note: The type_name check is redundant if vtable pointers are identical.
+  // TK_ASSERT(strcmp(begin.vtable->type_name, end.vtable->type_name) == 0);
 
   // Loop while the current iterator 'begin' is not equal to 'end'
   while (!tk_iter_equal(&begin, &end)) {

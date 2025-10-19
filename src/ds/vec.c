@@ -237,16 +237,31 @@ static void tk_vec_iter_clone(tk_iterator_t *dest, const tk_iterator_t *src) {
  * This connects the generic iterator interface to our specific
  * functions.
  */
-static const tk_iterator_vtable_t g_vec_vtable = {.advance =
-                                                      tk_vec_iter_advance,
-                                                  .get = tk_vec_iter_get,
-                                                  .equal = tk_vec_iter_equal,
-                                                  .clone = tk_vec_iter_clone};
+// static const tk_iterator_vtable_t g_vec_vtable = {.advance =
+//                                                       tk_vec_iter_advance,
+//                                                   .get = tk_vec_iter_get,
+//                                                   .equal = tk_vec_iter_equal,
+//                                                   .clone =
+//                                                   tk_vec_iter_clone};
+
+/**
+ * @brief The single, static vtable for all tk_vec_t iterators.
+ *
+ * This uses the TK_DEFINE_ITERATOR_VTABLE macro to ensure all
+ * function pointers and metadata fields are correctly initialized.
+ */
+static const tk_iterator_vtable_t g_vec_vtable =
+    TK_DEFINE_ITERATOR_VTABLE(tk_vec_iter,           /* Function Prefix */
+                              TK_ITER_RANDOM_ACCESS, /* Category */
+                              "tk_vec_iterator");    /* Type Name */
 
 // --- Public iterator function implementations ---
 
 tk_iterator_t tk_vec_begin(tk_vec_t *vec) {
   TK_ASSERT(vec);
+  // Validate the vtable in debug builds.
+  tk_iterator_vtable_validate(&g_vec_vtable);
+
   tk_iterator_t iter;
   // Point to the correct "instruction manual" (vtable)
   iter.vtable = &g_vec_vtable;

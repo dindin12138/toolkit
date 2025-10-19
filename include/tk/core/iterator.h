@@ -20,10 +20,32 @@
 #ifndef TOOLKIT_CORE_ITERATOR_H
 #define TOOLKIT_CORE_ITERATOR_H
 
+#include <tk/core/macros.h>
 #include <tk/core/types.h>
 
 // Forward-declare the main iterator struct so the vtable can reference it.
 typedef struct tk_iterator_t tk_iterator_t;
+
+/**
+ * @brief Defines the category (capabilities) of an iterator.
+ *
+ * This allows algorithms to assert that they have the required
+ * capabilities (e.g., sorting requires random access).
+ */
+typedef enum {
+  /**
+   * @brief Can move forward, one element at a time.
+   */
+  TK_ITER_FORWARD,
+  /**
+   * @brief Can move forward and backward.
+   */
+  TK_ITER_BIDIRECTIONAL,
+  /**
+   * @brief Can be accessed at any offset in O(1). (e.g., tk_vec_t)
+   */
+  TK_ITER_RANDOM_ACCESS
+} tk_iter_category_t;
 
 /**
  * @brief The "Iterator Protocol" virtual table (vtable).
@@ -32,6 +54,17 @@ typedef struct tk_iterator_t tk_iterator_t;
  * for its specific iterators.
  */
 typedef struct {
+  /**
+   * @brief The capability category of this iterator.
+   */
+  tk_iter_category_t category;
+
+  /**
+   * @brief A unique string identifier for the iterator type.
+   * Used in debug builds to assert type safety.
+   */
+  const char *type_name;
+
   /**
    * @brief Advances the iterator 'self' to the next element.
    * @param self A pointer to the iterator to be advanced.
@@ -66,6 +99,29 @@ typedef struct {
 } tk_iterator_vtable_t;
 
 /**
+ * @brief A macro to safely and consistently define an
+ * iterator vtable.
+ *
+ * This ensures all function pointers and metadata fields are set,
+ * preventing incomplete or inconsistent vtable definitions as the
+ * interface evolves.
+ *
+ * @param PREFIX The unique prefix for the iterator's static functions
+ * (e.g., `tk_vec_iter`).
+ * @param CATEGORY The `tk_iter_category_t` for this iterator
+ * (e.g., `TK_ITER_RANDOM_ACCESS`).
+ * @param TYPENAME A string literal for this iterator's type
+ * (e.g., "tk_vec_iterator").
+ */
+#define TK_DEFINE_ITERATOR_VTABLE(PREFIX, CATEGORY, TYPENAME)                  \
+  {.category = (CATEGORY),                                                     \
+   .type_name = (TYPENAME),                                                    \
+   .advance = PREFIX##_advance,                                                \
+   .get = PREFIX##_get,                                                        \
+   .equal = PREFIX##_equal,                                                    \
+   .clone = PREFIX##_clone}
+
+/**
  * @brief The unified, polymorphic iterator type.
  *
  * This struct is the "handle" that all generic algorithms will use.
@@ -95,6 +151,24 @@ struct tk_iterator_t {
 };
 
 // --- Generic Iterator Operations ---
+
+/**
+ * @brief Validates the completeness of a vtable in debug builds.
+ *
+ * Asserts that all essential function pointers and metadata fields are
+ * non-NULL.
+ * @param vtable A pointer to the vtable to validate.
+ */
+static inline void
+tk_iterator_vtable_validate(const tk_iterator_vtable_t *vtable) {
+  (void)vtable; // Suppress unused warning in release builds
+  TK_ASSERT(vtable != NULL);
+  TK_ASSERT(vtable->advance != NULL);
+  TK_ASSERT(vtable->get != NULL);
+  TK_ASSERT(vtable->equal != NULL);
+  TK_ASSERT(vtable->clone != NULL);
+  TK_ASSERT(vtable->type_name != NULL);
+}
 
 /**
  * @brief Advances the iterator to the next element.
