@@ -53,8 +53,6 @@ tk_algo_find_if(tk_iterator_t begin, tk_iterator_t end,
   TK_ASSERT(begin.vtable == end.vtable &&
             "tk_algo_find_if: 'begin' and 'end' iterators are from "
             "different container types.");
-  // Note: The type_name check is redundant if vtable pointers are identical.
-  // TK_ASSERT(strcmp(begin.vtable->type_name, end.vtable->type_name) == 0);
 
   // Loop while the current iterator 'begin' is not equal to 'end'
   while (!tk_iter_equal(&begin, &end)) {
