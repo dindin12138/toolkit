@@ -72,6 +72,31 @@ void tk_vec_destroy(tk_vec_t *vec) {
   free(vec);
 }
 
+/**
+ * @brief Implements the deep-free destroyer function.
+ */
+void tk_vec_destroy_full(tk_vec_t *vec, tk_element_destroyer_t destroyer) {
+  if (!vec)
+    return;
+
+  // If a destroyer is provided, iterate and call it for each
+  // element.
+  if (destroyer) {
+    size_t size = tk_vec_size(vec);
+    for (size_t i = 0; i < size; ++i) {
+      // tk_vec_at returns a pointer TO the element in the array
+      void *element_ptr = tk_vec_at(vec, i);
+      if (element_ptr) {
+        destroyer(element_ptr);
+      }
+    }
+  }
+
+  // Now, safely free the vector's internal array and the struct itself.
+  arrfree(vec->stb_array);
+  free(vec);
+}
+
 // --- Capacity Functions ---
 
 size_t tk_vec_size(const tk_vec_t *vec) {

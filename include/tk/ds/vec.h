@@ -17,6 +17,17 @@
 // contents.
 typedef struct tk_vec_t tk_vec_t;
 
+/**
+ * @brief Defines a function pointer type for an element destroyer.
+ *
+ * This function receives a pointer TO the element stored in the vector
+ * (e.g., if the vector stores `char*`, this function receives a `char**`).
+ * It is responsible for freeing any resources owned by that element.
+ *
+ * @param element_ptr A pointer to the element within the vector's storage.
+ */
+typedef void (*tk_element_destroyer_t)(void *element_ptr);
+
 // --- Lifecycle Functions ---
 
 /**
@@ -33,6 +44,22 @@ tk_vec_t *tk_vec_create(size_t element_size);
  * function does nothing.
  */
 void tk_vec_destroy(tk_vec_t *vec);
+
+/**
+ * @brief Destroys a vector and deep-frees its elements using a
+ * custom destroyer.
+ *
+ * This function should be used when the vector stores pointers or other
+ * resources that need to be manually freed. It iterates over every element
+ * and calls the provided `destroyer` function on it before freeing the
+ * vector itself.
+ *
+ * @param vec A pointer to the vector handle to be destroyed.
+ * @param destroyer A function pointer that will be called for each element
+ * to free its resources. If NULL, this functions behaves
+ * identically to `tk_vec_destroy`.
+ */
+void tk_vec_destroy_full(tk_vec_t *vec, tk_element_destroyer_t destroyer);
 
 // --- Capacity Functions ---
 

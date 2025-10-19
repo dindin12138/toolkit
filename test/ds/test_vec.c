@@ -178,6 +178,22 @@ Test(vec_suite, iterators) {
             "Iterator did not equal end() after the loop");
 }
 
+// --- Test helpers for tk_vec_destroy_full ---
+
+/**
+ * @brief A global counter to be incremented by the test destroyer.
+ */
+static int g_destroy_counter = 0;
+
+/**
+ * @brief A test destroyer function that increments a global counter.
+ * @param element_ptr Pointer to the element (unused in this test).
+ */
+static void test_element_destroyer(void *element_ptr) {
+  (void)element_ptr; // Suppress unused warning
+  g_destroy_counter++;
+}
+
 // --- Standalone Miscellaneous Tests ---
 
 typedef struct {
@@ -236,4 +252,30 @@ Test(misc_tests, boundary_checks) {
   cr_assert_null(tk_vec_at(v, 100), "at(large_index) should be out of bounds");
 
   tk_vec_destroy(v);
+}
+
+/**
+ * @brief Tests the tk_vec_destroy_full function to ensure
+ * the destroyer is called for each element.
+ */
+Test(misc_tests, destroy_full) {
+  // 1. Reset the global counter
+  g_destroy_counter = 0;
+
+  // 2. Create a vector and add 5 elements
+  tk_vec_t *v = tk_vec_create(sizeof(int));
+  cr_assert_not_null(v);
+  for (int i = 0; i < 5; ++i) {
+    tk_vec_push_back(v, &i);
+  }
+  cr_assert_eq(tk_vec_size(v), 5);
+
+  // 3. Call destroy_full() with our test destroyer
+  // This function call will free 'v', so we must not use 'v' afterward.
+  tk_vec_destroy_full(v, test_element_destroyer);
+
+  // 4. Assert that the destroyer was called 5 times
+  cr_assert_eq(g_destroy_counter, 5,
+               "The destroyer function was not called the correct number of "
+               "times.");
 }
