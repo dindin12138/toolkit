@@ -16,10 +16,11 @@ To get started quickly and build upon battle-tested code, the initial data struc
 
 ## Current Features
 
-*   A generic, dynamic vector (`tk_vec_t`).
-*   A polymorphic iterator system.
-*   A simple `tk_algo_find_if` algorithm to demonstrate the iterator concept.
-*   A standardized error-handling system using the `tk_error_t` enum.
+- A generic, dynamic vector (`tk_vec_t`).
+- A doubly linked list (`tk_list_t`).
+- A polymorphic iterator system.
+- A simple `tk_algo_find_if` algorithm to demonstrate the iterator concept.
+- A standardized error-handling system using the `tk_error_t` enum.
 
 ## How to Build and Test
 
@@ -46,6 +47,6 @@ ctest --test-dir build
 
 As I learn more and my needs for future projects grow, I plan to:
 
-*   Add more data structures, such as a hash map and a linked list.
-*   Expand the algorithm library with functions for sorting, copying, and transforming elements.
-*   Continuously refine the API to make it as clean and useful as possible for my own use.
+- Add more data structures, such as a hash map and a linked list.
+- Expand the algorithm library with functions for sorting, copying, and transforming elements.
+- Continuously refine the API to make it as clean and useful as possible for my own use.
