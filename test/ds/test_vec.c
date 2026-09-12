@@ -1,5 +1,5 @@
 /**
- * @file criterion_tests.c
+ * @file test_vec.c
  * @brief Unit tests for the tk_vec module using the Criterion framework.
  *
  * This file demonstrates modern C unit testing practices with Criterion,
@@ -8,6 +8,7 @@
 
 #include <criterion/criterion.h>
 #include <criterion/new/assert.h> // Modern assertion macros (eq, ne, etc.)
+#include <stdint.h>               // For SIZE_MAX
 #include <stdio.h>
 #include <string.h> // For strcmp in struct test
 #include <tk/core/iterator.h>
@@ -55,7 +56,7 @@ Test(vec_suite, reallocation) {
   for (int i = 0; i < num_elements; ++i) {
     tk_vec_push_back(vec, &i);
   }
-  cr_assert_eq(tk_vec_size(vec), num_elements,
+  cr_assert_eq(tk_vec_size(vec), (size_t)num_elements,
                "Size should be %d after insertions", num_elements);
   for (int i = 0; i < num_elements; ++i) {
     cr_assert_eq(*(int *)tk_vec_at(vec, i), i,
@@ -101,6 +102,52 @@ Test(vec_suite, reserve_edge_cases) {
 
   tk_vec_reserve(vec, 0);
   cr_assert_eq(tk_vec_size(vec), 5, "Size should not change when reserving 0");
+}
+
+/**
+ * @brief Regression test for issue #9 (NULL-safety) and #12 (overflow).
+ *
+ * All public tk_vec_* functions must be safe to call with a NULL handle: query
+ * functions return a sentinel (0 / true / NULL) and mutating functions return
+ * TK_E_INVALID_ARG (or are a no-op), instead of dereferencing NULL.
+ */
+Test(vec_suite, null_safety) {
+  cr_assert_eq(tk_vec_size(NULL), 0, "size(NULL) should be 0");
+  cr_assert_eq(tk_vec_capacity(NULL), 0, "capacity(NULL) should be 0");
+  cr_assert(tk_vec_is_empty(NULL), "is_empty(NULL) should be true");
+  cr_assert_null(tk_vec_at(NULL, 0), "at(NULL, 0) should be NULL");
+  cr_assert_null(tk_vec_front(NULL), "front(NULL) should be NULL");
+  cr_assert_null(tk_vec_back(NULL), "back(NULL) should be NULL");
+
+  int value = 7;
+  cr_assert_eq(tk_vec_reserve(NULL, 10), TK_E_INVALID_ARG,
+               "reserve(NULL, n) should return TK_E_INVALID_ARG");
+  cr_assert_eq(tk_vec_push_back(NULL, &value), TK_E_INVALID_ARG,
+               "push_back(NULL, elem) should return TK_E_INVALID_ARG");
+  cr_assert_eq(tk_vec_push_back(vec, NULL), TK_E_INVALID_ARG,
+               "push_back(vec, NULL) should return TK_E_INVALID_ARG");
+
+  // These must not crash.
+  tk_vec_pop_back(NULL);
+  tk_vec_clear(NULL);
+  tk_vec_destroy(NULL);
+  tk_vec_destroy_full(NULL, NULL);
+
+  cr_assert(true, "Reached the end of the NULL-safety test without crashing");
+}
+
+/**
+ * @brief Regression test for issue #12: reserve must detect size_t overflow.
+ *
+ * With element_size > 1, reserving SIZE_MAX elements would overflow
+ * `n * element_size`; the implementation must return TK_E_NOMEM up front
+ * instead of wrapping around.
+ */
+Test(vec_suite, reserve_overflow) {
+  cr_assert_gt(sizeof(int), 1, "This test assumes element_size > 1");
+  tk_error_t err = tk_vec_reserve(vec, SIZE_MAX);
+  cr_assert_eq(err, TK_E_NOMEM,
+               "reserve(SIZE_MAX) must report TK_E_NOMEM (overflow guard)");
 }
 
 /**

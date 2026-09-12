@@ -16,6 +16,19 @@
  * a `tk_vec_t` (which advances by pointer arithmetic) and a future `tk_list_t`
  * (which advances by following a 'next' pointer), without the algorithm
  * needing to know the difference.
+ *
+ * @section iter_invalidation Iterator invalidation rules
+ * - Any operation that may reallocate or re-link storage
+ *   (tk_vec_push_back / tk_vec_reserve / tk_list_insert_before /
+ *    tk_list_erase_at) invalidates *all* outstanding iterators of that
+ *   container, including any previously obtained end() iterator.
+ * - Retreating an iterator before begin() is a well-defined no-op: the vtable
+ *   `retreat` implementations clamp at begin() instead of stepping out of
+ *   bounds (vec) or silently jumping to end() (list).
+ * - An invalid iterator (vtable == NULL, returned by tk_list_erase_at on
+ *   error) must not be dereferenced; the tk_iter_* helpers below treat it as a
+ *   no-op (next/prev), return NULL (get) or report "not equal to anything"
+ *   (equal).
  */
 #ifndef TOOLKIT_CORE_ITERATOR_H
 #define TOOLKIT_CORE_ITERATOR_H
@@ -98,26 +111,28 @@ typedef struct {
 
   /**
    * @brief (Optional) Retreats the iterator 'self' to the previous element.
-   * MUST be implemented if category is TK_ITER_BIDIRECTIONAL or
-   * TK_ITER_RANDOM_ACCESS. Can be NULL otherwise.
+   * MUST be non-NULL if category is TK_ITER_BIDIRECTIONAL or
+   * TK_ITER_RANDOM_ACCESS. MUST be NULL for forward-only iterators
+   * (TK_ITER_FORWARD); use TK_DEFINE_FORWARD_ITERATOR_VTABLE for those.
    * @param self A pointer to the iterator to be retreated.
    */
-  void (*retreat)(tk_iterator_t *self); // <-- Add this line
+  void (*retreat)(tk_iterator_t *self);
 
 } tk_iterator_vtable_t;
 
 /**
- * @brief A macro to safely and consistently define an
- * iterator vtable.
+ * @brief A macro to safely and consistently define an iterator vtable.
  *
- * This ensures all function pointers and metadata fields are set,
- * preventing incomplete or inconsistent vtable definitions as the
- * interface evolves.
+ * Use this for bidirectional or random-access iterators (those that provide a
+ * `PREFIX##_retreat` function). It ensures all function pointers and metadata
+ * fields are set, preventing incomplete or inconsistent vtable definitions as
+ * the interface evolves.
  *
  * @param PREFIX The unique prefix for the iterator's static functions
- * (e.g., `tk_vec_iter`).
+ * (e.g., `tk_vec_iter`). The prefix MUST define `_advance`, `_get`, `_equal`,
+ * `_clone` and `_retreat`.
  * @param CATEGORY The `tk_iter_category_t` for this iterator
- * (e.g., `TK_ITER_RANDOM_ACCESS`).
+ * (e.g., `TK_ITER_RANDOM_ACCESS`). Must be >= TK_ITER_BIDIRECTIONAL.
  * @param TYPENAME A string literal for this iterator's type
  * (e.g., "tk_vec_iterator").
  */
@@ -128,17 +143,40 @@ typedef struct {
    .get = PREFIX##_get,                                                        \
    .equal = PREFIX##_equal,                                                    \
    .clone = PREFIX##_clone,                                                    \
-   .retreat = ((CATEGORY) >= TK_ITER_BIDIRECTIONAL) ? PREFIX##_retreat : NULL}
+   .retreat = PREFIX##_retreat}
+
+/**
+ * @brief Defines a vtable for a forward-only iterator.
+ *
+ * A forward-only iterator has no `retreat` operation, so this macro sets
+ * `.retreat = NULL` and does NOT reference a `PREFIX##_retreat` symbol. This
+ * matters because the ternary expression used previously would still name the
+ * missing symbol at compile time, breaking the build for any container that
+ * (correctly) omits `_retreat`.
+ *
+ * @param PREFIX The unique prefix for the iterator's static functions. The
+ * prefix MUST define `_advance`, `_get`, `_equal` and `_clone` (but no
+ * `_retreat`).
+ * @param TYPENAME A string literal for this iterator's type.
+ */
+#define TK_DEFINE_FORWARD_ITERATOR_VTABLE(PREFIX, TYPENAME)                    \
+  {.category = TK_ITER_FORWARD,                                                \
+   .type_name = (TYPENAME),                                                    \
+   .advance = PREFIX##_advance,                                                \
+   .get = PREFIX##_get,                                                        \
+   .equal = PREFIX##_equal,                                                    \
+   .clone = PREFIX##_clone,                                                    \
+   .retreat = NULL}
 
 /**
  * @brief The unified, polymorphic iterator type.
  *
  * This struct is the "handle" that all generic algorithms will use.
  * It is intentionally designed to be small-buffer optimized (SBO).
- * Its size (e.g., 32 bytes on 64-bit) is large enough to hold the
- * state of most common iterators (like a pointer + a size) directly
- * within its own memory, avoiding the need for extra heap allocations
- * for the iterator's state.
+ * Its size is 40 bytes on 64-bit (8-byte vtable pointer + 32-byte SBO
+ * buffer), which is large enough to hold the state of most common iterators
+ * (like a pointer + a size) directly within its own memory, avoiding the need
+ * for extra heap allocations for the iterator's state.
  */
 struct tk_iterator_t {
   /**
@@ -165,7 +203,8 @@ struct tk_iterator_t {
  * @brief Validates the completeness of a vtable in debug builds.
  *
  * Asserts that all essential function pointers and metadata fields are
- * non-NULL.
+ * non-NULL, and that `retreat` is present if and only if the category is at
+ * least bidirectional.
  * @param vtable A pointer to the vtable to validate.
  */
 static inline void
@@ -177,16 +216,23 @@ tk_iterator_vtable_validate(const tk_iterator_vtable_t *vtable) {
   TK_ASSERT(vtable->equal != NULL);
   TK_ASSERT(vtable->clone != NULL);
   TK_ASSERT(vtable->type_name != NULL);
+  // Bidirectional/random-access iterators must provide retreat...
   TK_ASSERT((vtable->category < TK_ITER_BIDIRECTIONAL) ||
             (vtable->retreat != NULL));
+  // ...and forward-only iterators must NOT provide one.
+  TK_ASSERT((vtable->category >= TK_ITER_BIDIRECTIONAL) ||
+            (vtable->retreat == NULL));
 }
 
 /**
  * @brief Advances the iterator to the next element.
  * (Calls the vtable's 'advance' function).
+ * An invalid iterator (vtable == NULL) is a no-op.
  * @param iter A pointer to the iterator to advance.
  */
 static inline void tk_iter_next(tk_iterator_t *iter) {
+  if (iter->vtable == NULL)
+    return; // invalid iterator: no-op
   iter->vtable->advance(iter);
 }
 
@@ -194,21 +240,34 @@ static inline void tk_iter_next(tk_iterator_t *iter) {
  * @brief Gets a pointer to the element the iterator points to.
  * (Calls the vtable's 'get' function).
  * @param iter A constant pointer to the iterator.
- * @return A `void*` pointer to the user's data element.
+ * @return A `void*` pointer to the user's data element, or NULL if the
+ * iterator is invalid (vtable == NULL).
  */
 static inline void *tk_iter_get(const tk_iterator_t *iter) {
+  if (iter->vtable == NULL)
+    return NULL; // invalid iterator: no element
   return iter->vtable->get(iter);
 }
 
 /**
  * @brief Checks if two iterators are equal.
  * (Calls the vtable's 'equal' function).
+ *
+ * Equality is only defined for iterators obtained from a container. An invalid
+ * iterator (vtable == NULL) is never equal to anything, including another
+ * invalid iterator.
+ *
  * @param iter1 A constant pointer to the first iterator.
  * @param iter2 A constant pointer to the second iterator.
  * @return `true` if they are equal, `false` otherwise.
  */
 static inline tk_bool tk_iter_equal(const tk_iterator_t *iter1,
                                     const tk_iterator_t *iter2) {
+  // An invalid iterator is never equal to anything. This guard is essential:
+  // without it, two NULL vtables would compare equal and we would call
+  // NULL->equal, crashing.
+  if (iter1->vtable == NULL || iter2->vtable == NULL)
+    return false;
   // Iterators can only be equal if they are of the same type
   // (i.e., share the same vtable) and their vtable's equal func says so.
   return (iter1->vtable == iter2->vtable) &&
@@ -218,11 +277,17 @@ static inline tk_bool tk_iter_equal(const tk_iterator_t *iter1,
 /**
  * @brief Creates a copy of an iterator.
  * (Calls the vtable's 'clone' function).
+ * If the source is an invalid iterator (vtable == NULL), the destination is
+ * marked invalid as well.
  * @param dest A pointer to the destination iterator (will be overwritten).
  * @param src A constant pointer to the source iterator to copy.
  */
 static inline void tk_iter_clone(tk_iterator_t *dest,
                                  const tk_iterator_t *src) {
+  if (src->vtable == NULL) {
+    dest->vtable = NULL; // propagate the invalid marker
+    return;
+  }
   src->vtable->clone(dest, src);
 }
 
@@ -230,9 +295,12 @@ static inline void tk_iter_clone(tk_iterator_t *dest,
  * @brief Retreats the iterator to the previous element.
  * (Calls the vtable's 'retreat' function).
  * Asserts that the iterator is at least bidirectional.
+ * An invalid iterator (vtable == NULL) is a no-op.
  * @param iter A pointer to the iterator to retreat.
  */
 static inline void tk_iter_prev(tk_iterator_t *iter) {
+  if (iter->vtable == NULL)
+    return; // invalid iterator: no-op
   TK_ASSERT(iter->vtable->category >=
             TK_ITER_BIDIRECTIONAL);         // Ensure capability
   TK_ASSERT(iter->vtable->retreat != NULL); // Ensure function exists

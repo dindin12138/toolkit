@@ -24,12 +24,20 @@ To get started quickly and build upon battle-tested code, the initial data struc
 
 ## How to Build and Test
 
-The project is built using CMake.
+The project is built using CMake and, in this repository, is developed inside a
+[Nix](https://nixos.org/) + [devenv](https://devenv.sh/) shell that provides the
+compiler (`clang`), `cmake`, `pkg-config` and the Criterion test framework. If
+you have `direnv` configured, the environment loads automatically; otherwise run
+commands through `devenv shell`:
+
+```bash
+devenv shell --quiet -- bash -c 'cmake -S . -B build -G Ninja && cmake --build build'
+```
 
 ### Build the Library
 
 ```bash
-cmake -S . -B build
+cmake -S . -B build -G Ninja
 cmake --build build
 ```
 
@@ -38,15 +46,26 @@ cmake --build build
 The tests use the Criterion framework.
 
 ```bash
-cmake -S . -B build -DTOOLKIT_BUILD_TESTS=ON
+cmake -S . -B build -G Ninja -DTOOLKIT_BUILD_TESTS=ON
 cmake --build build
-ctest --test-dir build
+ctest --test-dir build --output-on-failure
+```
+
+### Optional: Sanitizers
+
+To configure a build with AddressSanitizer and UndefinedBehaviorSanitizer, pass
+`-DTOOLKIT_ENABLE_SANITIZERS=ON`:
+
+```bash
+cmake -S . -B build-asan -G Ninja -DTOOLKIT_BUILD_TESTS=ON -DTOOLKIT_ENABLE_SANITIZERS=ON
+cmake --build build-asan
+ctest --test-dir build-asan --output-on-failure
 ```
 
 ## Future Goals
 
 As I learn more and my needs for future projects grow, I plan to:
 
-- Add more data structures, such as a hash map and a linked list.
+- Add more data structures, such as a hash map.
 - Expand the algorithm library with functions for sorting, copying, and transforming elements.
 - Continuously refine the API to make it as clean and useful as possible for my own use.

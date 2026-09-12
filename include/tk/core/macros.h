@@ -10,7 +10,13 @@
 
 /**
  * @brief A robust assertion macro for debugging.
- * ... (TK_ASSERT a a a a ... )
+ *
+ * Expands to `assert(expr)` in debug builds and to a no-op when `NDEBUG` is
+ * defined. It is intended for *internal invariants* only; public API entry
+ * points should validate their arguments explicitly and return a sentinel or
+ * error code so that behaviour is well-defined even in release builds.
+ *
+ * @param expr The expression that must hold.
  */
 #ifdef NDEBUG
 #define TK_ASSERT(expr) ((void)0)
@@ -22,6 +28,11 @@
 /**
  * @brief Casts a pointer to a struct member back to a pointer to its containing
  * struct.
+ *
+ * This is a utility macro intended for future intrusive containers; it is not
+ * used by the current non-intrusive containers. It is provided (and prefixed
+ * with `tk_` to comply with the toolkit naming convention) so that upcoming
+ * intrusive node types can reuse it.
  *
  * This version is inspired by the modern Linux kernel implementation, providing
  * compile-time type checking when using GCC or Clang. It ensures that the
@@ -35,14 +46,14 @@
  */
 #if defined(__GNUC__) || defined(__clang__)
 // GCC/Clang version with compile-time type checking
-#define container_of(ptr, type, member)                                        \
+#define tk_container_of(ptr, type, member)                                     \
   ({                                                                           \
     const typeof(((type *)0)->member) *__mptr = (ptr);                         \
     (type *)((char *)__mptr - offsetof(type, member));                         \
   })
 #else
 // Portable version for other compilers (e.g., MSVC), lacks type checking
-#define container_of(ptr, type, member)                                        \
+#define tk_container_of(ptr, type, member)                                     \
   ((type *)((char *)(ptr) - offsetof(type, member)))
 #endif
 

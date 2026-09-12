@@ -153,3 +153,28 @@ Test(algo_suite, find_if_first_element) {
   cr_assert_eq(*(int *)tk_iter_get(&result), 10,
                "The algorithm found the wrong element.");
 }
+
+/**
+ * @brief Test `tk_algo_find_if` with the odd predicate (find_odd).
+ *
+ * This also ensures `find_odd` is exercised by a real test case.
+ */
+Test(algo_suite, find_if_odd) {
+  // Replace the fixture contents with a mix of even and odd numbers.
+  tk_vec_clear(vec_int);
+  int values[] = {2, 4, 7, 9};
+  for (int i = 0; i < 4; ++i) {
+    tk_vec_push_back(vec_int, &values[i]);
+  }
+
+  tk_iterator_t begin = tk_vec_begin(vec_int);
+  tk_iterator_t end = tk_vec_end(vec_int);
+
+  tk_iterator_t result = tk_algo_find_if(begin, end, find_odd);
+
+  // The first odd number is 7.
+  cr_assert(tk_iter_equal(&result, &end) == false,
+            "find_if(find_odd) should locate an odd element.");
+  cr_assert_eq(*(int *)tk_iter_get(&result), 7,
+               "find_if(find_odd) should return the first odd element (7).");
+}

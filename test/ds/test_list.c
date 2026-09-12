@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <tk/core/iterator.h> // For tk_iterator_t and operations
 #include <tk/ds/list.h>       // The list implementation we are testing
+#include <tk/ds/vec.h>        // For the foreign-iterator regression test
 
 // --- Test Fixture for Integer List ---
 
@@ -363,10 +364,42 @@ Test(list_suite, iterators_erase) {
                  "Erasing from empty list should return invalid iterator");
 }
 
+/**
+ * @brief Regression test for issues #10/#26: an iterator from a *different*
+ * container type must be rejected (vtable pointer-identity check, not strcmp).
+ */
+Test(list_suite, foreign_container_iterator) {
+  // Build a vec and take an iterator from it.
+  tk_vec_t *v = tk_vec_create(sizeof(int));
+  cr_assert_not_null(v);
+  int val = 1;
+  tk_vec_push_back(v, &val);
+  tk_iterator_t vec_it = tk_vec_begin(v);
+
+  // insert_before with a foreign (vec) iterator must be rejected, leaving the
+  // list unchanged.
+  int newval = 99;
+  cr_assert_eq(tk_list_insert_before(list_int, vec_it, &newval),
+               TK_E_INVALID_ARG,
+               "insert_before must reject an iterator from another container");
+  cr_assert_eq(tk_list_size(list_int), 0, "List must remain unchanged");
+
+  // erase_at with a foreign iterator on a non-empty list must be rejected and
+  // return an invalid iterator, leaving the list unchanged.
+  int real = 5;
+  tk_list_push_back(list_int, &real);
+  tk_iterator_t res = tk_list_erase_at(list_int, vec_it);
+  cr_assert_null(res.vtable,
+                 "erase_at must return an invalid iterator for a foreign "
+                 "iterator");
+  cr_assert_eq(tk_list_size(list_int), 1, "List must remain unchanged");
+
+  tk_vec_destroy(v);
+}
+
 // --- Test helpers for tk_list_destroy_full ---
 
 static int g_list_destroy_counter = 0;
-
 static void test_list_element_destroyer(void *element_data) {
   // We receive the pointer to the data itself (e.g., int*)
   // Increment counter. In a real scenario, might free(*((char**)element_ptr))

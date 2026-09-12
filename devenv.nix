@@ -2,14 +2,14 @@
 {
   languages.cplusplus.enable = true;
   packages = with pkgs; [
-    cmake
+    # cmake
     ninja
     bear
     pkg-config
-    clang
+    # clang
     lldb
-    gcc
-    gdb
+    # gcc
+    # gdb
 
     # Test framework criterion
     criterion

@@ -3,9 +3,17 @@
  * @brief Defines the standard error codes and error handling mechanisms for the
  * toolkit.
  *
- * All functions in the toolkit that can fail should return a value of type
- * tk_error_t. A return value of TK_SUCCESS (which is 0) indicates success,
- * while any non-zero value indicates an error.
+ * Error-reporting conventions used throughout the toolkit:
+ *  - Operations that can fail (allocation, bounds-checked mutation) return a
+ *    `tk_error_t`. Any out-parameter is written only on TK_SUCCESS.
+ *  - Pure query / accessor functions that never allocate return a sentinel:
+ *    NULL means "no element / out of bounds / invalid", while 0 or false are
+ *    returned for sizes and predicates. Each function documents its sentinel.
+ *  - `tk_list_erase_at` returns an *invalid iterator* (vtable == NULL) on
+ *    error; all `tk_iter_*` helpers are NULL-vtable safe (see iterator.h).
+ *
+ * A return value of TK_SUCCESS (which is 0) indicates success, while any
+ * non-zero value indicates an error.
  */
 #ifndef TOOLKIT_CORE_ERROR_H
 #define TOOLKIT_CORE_ERROR_H

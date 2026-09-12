@@ -49,6 +49,11 @@ typedef struct {
   tk_list_t *list; // Pointer back to the list (needed for retreat from end)
 } tk_list_iter_state_t;
 
+// Forward declaration of the list vtable. The helper below needs to compare an
+// incoming iterator's vtable against it, but the vtable itself is defined
+// further down (after its static function implementations).
+static const tk_iterator_vtable_t g_list_vtable;
+
 // --- Helper Functions ---
 
 /**
@@ -118,7 +123,6 @@ tk_list_t *tk_list_create(size_t element_size) {
 }
 
 void tk_list_clear(tk_list_t *list) {
-  TK_ASSERT(list != NULL);
   if (!list)
     return;
 
@@ -163,42 +167,33 @@ void tk_list_destroy_full(tk_list_t *list, tk_element_destroyer_t destroyer) {
 
 // --- Size/Query Functions ---
 
-size_t tk_list_size(const tk_list_t *list) {
-  TK_ASSERT(list != NULL);
-  return list ? list->size : 0;
-}
+size_t tk_list_size(const tk_list_t *list) { return list ? list->size : 0; }
 
 tk_bool tk_list_is_empty(const tk_list_t *list) {
-  TK_ASSERT(list != NULL);
   return list ? (list->size == 0) : true;
 }
 
 // --- Element Access Functions ---
 
 const void *tk_list_front(const tk_list_t *list) {
-  TK_ASSERT(list != NULL);
   return (list && list->head) ? list->head->data : NULL;
 }
 
 void *tk_list_front_mut(tk_list_t *list) {
-  TK_ASSERT(list != NULL);
   return (list && list->head) ? list->head->data : NULL;
 }
 
 const void *tk_list_back(const tk_list_t *list) {
-  TK_ASSERT(list != NULL);
   return (list && list->tail) ? list->tail->data : NULL;
 }
 
 void *tk_list_back_mut(tk_list_t *list) {
-  TK_ASSERT(list != NULL);
   return (list && list->tail) ? list->tail->data : NULL;
 }
 
 // --- Modifiers ---
 
 tk_error_t tk_list_push_back(tk_list_t *list, const void *element) {
-  TK_ASSERT(list != NULL && element != NULL);
   if (!list || !element)
     return TK_E_INVALID_ARG;
 
@@ -220,7 +215,6 @@ tk_error_t tk_list_push_back(tk_list_t *list, const void *element) {
 }
 
 void tk_list_pop_back(tk_list_t *list) {
-  TK_ASSERT(list != NULL);
   if (!list || !list->tail) {
     return; // Empty list or invalid list
   }
@@ -239,7 +233,6 @@ void tk_list_pop_back(tk_list_t *list) {
 }
 
 tk_error_t tk_list_push_front(tk_list_t *list, const void *element) {
-  TK_ASSERT(list != NULL && element != NULL);
   if (!list || !element)
     return TK_E_INVALID_ARG;
 
@@ -261,7 +254,6 @@ tk_error_t tk_list_push_front(tk_list_t *list, const void *element) {
 }
 
 void tk_list_pop_front(tk_list_t *list) {
-  TK_ASSERT(list != NULL);
   if (!list || !list->head) {
     return; // Empty list or invalid list
   }
@@ -279,35 +271,49 @@ void tk_list_pop_front(tk_list_t *list) {
   list->size--;
 }
 
-// Helper function to validate iterator and get node (can return NULL for end
-// iter)
-static tk_list_node_t *tk_list_get_node_from_iter(const tk_list_t *list,
-                                                  tk_iterator_t iter) {
-  if (!iter.vtable || iter.vtable->type_name == NULL ||
-      strcmp(iter.vtable->type_name, "tk_list_iterator") != 0) {
-    return (tk_list_node_t *)0xFFFFFFFF; // Use a distinct invalid pointer value
-  }
-  // Check if iterator's list pointer matches our list
+/**
+ * @brief Validates an incoming iterator and extracts the node it refers to.
+ *
+ * Replaces the previous "magic sentinel" (0xFFFFFFFF) contract with an explicit
+ * error code and an out-parameter:
+ *   - returns TK_E_INVALID_ARG if the iterator is not a list iterator of *this*
+ *     list;
+ *   - otherwise writes the referenced node to `*out_node` (which may be NULL
+ *     when the iterator is end()) and returns TK_SUCCESS.
+ *
+ * Type checking is done by *pointer identity* against the list vtable, which is
+ * both faster and more robust than the previous string comparison.
+ *
+ * @param list The list the iterator is expected to belong to.
+ * @param iter The iterator to validate.
+ * @param out_node Receives the referenced node (NULL for the end iterator).
+ * @return TK_SUCCESS on success, TK_E_INVALID_ARG for a foreign/invalid iter.
+ */
+static tk_error_t tk_list_get_node_from_iter(const tk_list_t *list,
+                                             tk_iterator_t iter,
+                                             tk_list_node_t **out_node) {
+  // Wrong container type, or an invalid iterator (vtable == NULL).
+  if (iter.vtable != &g_list_vtable)
+    return TK_E_INVALID_ARG;
+
+  // Iterator from a different list instance.
   const tk_list_iter_state_t *state =
       (const tk_list_iter_state_t *)iter.state.data;
-  if (state->list != list) {
-    return (tk_list_node_t *)0xFFFFFFFF; // Iterator from a different list
-  }
-  return state->node; // Can be NULL if it's the end iterator
+  if (state->list != list)
+    return TK_E_INVALID_ARG;
+
+  *out_node = state->node; // May be NULL (== end()).
+  return TK_SUCCESS;
 }
 
 tk_error_t tk_list_insert_before(tk_list_t *list, tk_iterator_t before_iter,
                                  const void *element) {
-  TK_ASSERT(list != NULL && element != NULL);
   if (!list || !element)
     return TK_E_INVALID_ARG;
 
-  tk_list_node_t *before_node = tk_list_get_node_from_iter(list, before_iter);
-
-  // Check for distinct invalid pointer
-  if (before_node == (tk_list_node_t *)0xFFFFFFFF) {
+  tk_list_node_t *before_node = NULL;
+  if (tk_list_get_node_from_iter(list, before_iter, &before_node) != TK_SUCCESS)
     return TK_E_INVALID_ARG;
-  }
 
   if (before_node == NULL) { // Insert at the end (before_iter is end())
     return tk_list_push_back(list, element);
@@ -338,15 +344,13 @@ tk_error_t tk_list_insert_before(tk_list_t *list, tk_iterator_t before_iter,
 tk_iterator_t tk_list_erase_at(tk_list_t *list, tk_iterator_t iter) {
   // Initialize to invalid iterator
   tk_iterator_t next_iter = {.vtable = NULL};
-  TK_ASSERT(list != NULL);
   if (!list || tk_list_is_empty(list)) {
     return next_iter; // Return invalid iterator
   }
 
-  tk_list_node_t *node_to_remove = tk_list_get_node_from_iter(list, iter);
-
-  // Check for invalid iterator or trying to erase end()
-  if (node_to_remove == (tk_list_node_t *)0xFFFFFFFF ||
+  tk_list_node_t *node_to_remove = NULL;
+  // Invalid iterator, or an attempt to erase end().
+  if (tk_list_get_node_from_iter(list, iter, &node_to_remove) != TK_SUCCESS ||
       node_to_remove == NULL) {
     return next_iter; // Return invalid iterator
   }
@@ -404,11 +408,19 @@ static void tk_list_iter_advance(tk_iterator_t *self) {
 /**
  * @brief (vtable) Retreats the list iterator to the previous node.
  * Required for TK_ITER_BIDIRECTIONAL.
+ *
+ * Retreating at begin() (node->prev == NULL) is a documented no-op: it stays
+ * at begin() instead of silently jumping to end() as a previous implementation
+ * did.
  */
 static void tk_list_iter_retreat(tk_iterator_t *self) {
   tk_list_iter_state_t *state = (tk_list_iter_state_t *)self->state.data;
   if (state->node) { // Retreating from a valid node
-    state->node = state->node->prev;
+    // Defensive: at begin() (prev == NULL) retreat is a no-op; it must NOT
+    // silently jump to end().
+    if (state->node->prev != NULL) {
+      state->node = state->node->prev;
+    }
   } else { // Retreating from the end() iterator (node is NULL)
     TK_ASSERT(state->list != NULL); // Need the list pointer
     // Check if list is empty before accessing tail

@@ -16,6 +16,7 @@
  * the unit of length or capacity.
  */
 
+#include <stdint.h> // For SIZE_MAX
 #include <stdlib.h>
 #include <string.h>
 #include <tk/core/iterator.h>
@@ -100,27 +101,35 @@ void tk_vec_destroy_full(tk_vec_t *vec, tk_element_destroyer_t destroyer) {
 // --- Capacity Functions ---
 
 size_t tk_vec_size(const tk_vec_t *vec) {
-  TK_ASSERT(vec);
+  if (!vec)
+    return 0;
   // Translation: stb_ds's arrlenu returns the length in bytes. We convert
   // it to the number of elements for the public API.
   return arrlenu(vec->stb_array) / vec->element_size;
 }
 
 tk_bool tk_vec_is_empty(const tk_vec_t *vec) {
-  TK_ASSERT(vec);
   // This function is correct because it relies on our translated tk_vec_size.
   return tk_vec_size(vec) == 0;
 }
 
 size_t tk_vec_capacity(const tk_vec_t *vec) {
-  TK_ASSERT(vec);
+  if (!vec)
+    return 0;
   // Translation: stb_ds's arrcap returns the capacity in bytes. We convert
   // it to the number of elements.
   return arrcap(vec->stb_array) / vec->element_size;
 }
 
 tk_error_t tk_vec_reserve(tk_vec_t *vec, size_t n) {
-  TK_ASSERT(vec);
+  if (!vec)
+    return TK_E_INVALID_ARG;
+
+  // Guard against `n * element_size` overflowing size_t before we ask stb_ds
+  // to grow the array.
+  if (vec->element_size != 0 && n > SIZE_MAX / vec->element_size)
+    return TK_E_NOMEM;
+
   // Translation: The user requests capacity for `n` elements. We must ask
   // stb_ds for `n * element_size` bytes of capacity.
   arrsetcap(vec->stb_array, n * vec->element_size);
@@ -135,22 +144,19 @@ tk_error_t tk_vec_reserve(tk_vec_t *vec, size_t n) {
 // arithmetic aligns perfectly with our `char*` internal storage.
 
 void *tk_vec_at(const tk_vec_t *vec, size_t index) {
-  TK_ASSERT(vec);
-  if (index >= tk_vec_size(vec))
+  if (!vec || index >= tk_vec_size(vec))
     return NULL;
   return vec->stb_array + (index * vec->element_size);
 }
 
 void *tk_vec_front(const tk_vec_t *vec) {
-  TK_ASSERT(vec);
-  if (tk_vec_is_empty(vec))
+  if (!vec || tk_vec_is_empty(vec))
     return NULL;
   return vec->stb_array;
 }
 
 void *tk_vec_back(const tk_vec_t *vec) {
-  TK_ASSERT(vec);
-  if (tk_vec_is_empty(vec))
+  if (!vec || tk_vec_is_empty(vec))
     return NULL;
   size_t last_index = tk_vec_size(vec) - 1;
   return vec->stb_array + (last_index * vec->element_size);
@@ -159,7 +165,8 @@ void *tk_vec_back(const tk_vec_t *vec) {
 // --- Modifiers ---
 
 tk_error_t tk_vec_push_back(tk_vec_t *vec, const void *element) {
-  TK_ASSERT(vec && element);
+  if (!vec || !element)
+    return TK_E_INVALID_ARG;
 
   // This is the safest and most critical part of the implementation.
   // We use `arraddnptr` to grow the byte array by `element_size` bytes.
@@ -170,8 +177,10 @@ tk_error_t tk_vec_push_back(tk_vec_t *vec, const void *element) {
 
   // In the current stb_ds implementation, arraddnptr on failure returns the
   // original pointer without growing capacity. A capacity check is the most
-  // reliable way to detect allocation failure.
-  if (tk_vec_capacity(vec) * vec->element_size < arrlenu(vec->stb_array)) {
+  // reliable way to detect allocation failure. We compare byte counts directly
+  // (arrcap/arrlenu are both in bytes), which avoids the integer overflow that
+  // `capacity * element_size` would risk.
+  if (arrcap(vec->stb_array) < arrlenu(vec->stb_array)) {
     return TK_E_NOMEM;
   }
 
@@ -181,17 +190,17 @@ tk_error_t tk_vec_push_back(tk_vec_t *vec, const void *element) {
 }
 
 void tk_vec_pop_back(tk_vec_t *vec) {
-  TK_ASSERT(vec);
-  if (!tk_vec_is_empty(vec)) {
-    // Translation: To pop one element, we must reduce the internal byte
-    // length by the size of one element.
-    size_t new_len_in_bytes = arrlenu(vec->stb_array) - vec->element_size;
-    arrsetlen(vec->stb_array, new_len_in_bytes);
-  }
+  if (!vec || tk_vec_is_empty(vec))
+    return;
+  // Translation: To pop one element, we must reduce the internal byte
+  // length by the size of one element.
+  size_t new_len_in_bytes = arrlenu(vec->stb_array) - vec->element_size;
+  arrsetlen(vec->stb_array, new_len_in_bytes);
 }
 
 void tk_vec_clear(tk_vec_t *vec) {
-  TK_ASSERT(vec);
+  if (!vec)
+    return;
   // This is inherently correct, as setting the byte-length to 0 clears the
   // vector regardless of element size.
   arrsetlen(vec->stb_array, 0);
@@ -206,6 +215,7 @@ void tk_vec_clear(tk_vec_t *vec) {
  */
 typedef struct {
   char *ptr;           // Pointer to the current element (8 bytes)
+  char *begin;         // Lower bound (first element), for retreat clamping
   size_t element_size; // Size of one element (8 bytes)
 } tk_vec_iter_state_t;
 
@@ -224,12 +234,18 @@ static void tk_vec_iter_advance(tk_iterator_t *self) {
 /**
  * @brief (vtable) Retreats the vector iterator to the previous element.
  * Required for TK_ITER_RANDOM_ACCESS >= TK_ITER_BIDIRECTIONAL.
+ *
+ * Retreating before begin() is a documented no-op (stays at begin()); it is
+ * clamped against the recorded lower bound so that it can never step out of
+ * bounds.
  */
 static void tk_vec_iter_retreat(tk_iterator_t *self) {
   // Get the private state from the SBO buffer
   tk_vec_iter_state_t *state = (tk_vec_iter_state_t *)self->state.data;
-  // Retreat the pointer by one element size
-  state->ptr -= state->element_size;
+  // Retreating before begin() is a documented no-op (stays at begin()).
+  if (state->ptr > state->begin) {
+    state->ptr -= state->element_size;
+  }
 }
 
 /**
@@ -264,7 +280,8 @@ static tk_bool tk_vec_iter_equal(const tk_iterator_t *iter1,
  */
 static void tk_vec_iter_clone(tk_iterator_t *dest, const tk_iterator_t *src) {
   // The simplest, fastest way to clone is to copy the entire struct.
-  // This copies both the vtable pointer and the 32-byte state union.
+  // This copies the vtable pointer and the whole 32-byte state union
+  // (including the `begin` lower bound).
   *dest = *src;
 }
 
@@ -295,7 +312,8 @@ tk_iterator_t tk_vec_begin(tk_vec_t *vec) {
 
   // Fill the state
   state->element_size = vec->element_size;
-  state->ptr = vec->stb_array; // 'stb_array' points to the first element
+  state->begin = vec->stb_array; // Lower bound for retreat clamping
+  state->ptr = vec->stb_array;   // 'stb_array' points to the first element
 
   return iter;
 }
@@ -311,6 +329,7 @@ tk_iterator_t tk_vec_end(tk_vec_t *vec) {
 
   // Fill the state
   state->element_size = vec->element_size;
+  state->begin = vec->stb_array; // Lower bound for retreat clamping
   // The "end" iterator points *past* the last element.
   state->ptr = vec->stb_array + (tk_vec_size(vec) * vec->element_size);
 

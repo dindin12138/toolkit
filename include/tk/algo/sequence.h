@@ -6,10 +6,11 @@
  * This file provides generic algorithms that operate on iterator ranges
  * (begin, end) to perform sequence operations, such as searching and counting.
  *
- * All functions in this file are implemented as `static inline` to
- * achieve zero-cost abstraction, allowing the compiler to fully inline
- * the algorithm logic and optimize away the iterator vtable calls
- * where possible.
+ * All functions in this file are `static inline`. Note this only inlines the
+ * thin wrapper layer (e.g. tk_iter_get); the underlying vtable calls are
+ * indirect function-pointer calls resolved at run time and cannot be
+ * devirtualized/inlined by the compiler. `static inline` therefore reduces
+ * wrapper overhead but does NOT make these algorithms "zero-cost".
  *
  * These algorithms are "generic" because they operate entirely on the
  * `tk_iterator_t` interface and have no knowledge of the underlying

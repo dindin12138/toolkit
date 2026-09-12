@@ -21,4 +21,20 @@
  */
 typedef bool tk_bool;
 
+/**
+ * @brief Signature of a user-supplied element destroyer.
+ *
+ * Receives a pointer TO the stored element (e.g. `char**` when the
+ * container stores `char*`) and is responsible for releasing any
+ * resources that element owns.
+ *
+ * @param element_ptr A pointer to the element within the container's storage.
+ *
+ * @note This is the single, canonical definition of the destroyer type for the
+ * entire toolkit. Containers (tk_vec_t, tk_list_t, ...) MUST NOT redefine it:
+ * under strict C99 a repeated typedef is a compile error, and a single source
+ * of truth keeps the containers usable together in one translation unit.
+ */
+typedef void (*tk_element_destroyer_t)(void *element_ptr);
+
 #endif // TOOLKIT_CORE_TYPES_H
