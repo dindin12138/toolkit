@@ -118,23 +118,80 @@ typedef struct {
    */
   void (*retreat)(tk_iterator_t *self);
 
+  /* ---- Random-access slots (stage 1 / P1-1) ----
+   * These two slots are populated ONLY by iterators whose category is
+   * TK_ITER_RANDOM_ACCESS. They are the protocol-level expression of the
+   * "random access" capability: a non-NULL slot is a promise of O(1) offset
+   * movement / distance. They are appended at the END of the struct so that
+   * pre-existing designated initializers keep compiling (unlisted trailing
+   * fields are zero-initialized to NULL in C). */
+
+  /**
+   * @brief (Random access) Moves 'self' by `n` elements (n may be negative).
+   *
+   * MUST be non-NULL iff category == TK_ITER_RANDOM_ACCESS; MUST be NULL
+   * otherwise (enforced by tk_iterator_vtable_validate).
+   *
+   * @pre `n` must lie within the representable stepping range
+   * [-(pos - begin), end - pos] (where `pos` is the current position). Two
+   * consequences are the caller's responsibility:
+   *   - Moving *past* end() is a precondition violation that cannot be
+   *     detected (iterators do not carry an upper bound).
+   *   - The byte step `n * (ptrdiff_t)element_size` must be representable:
+   *     for `n` near PTRDIFF_MAX with `element_size > 1` the product is
+   *     signed-overflow UB.
+   * Moving *before* begin() is defensively clamped at begin() (mirroring the
+   * retreat contract), so an underflowing negative `n` is a well-defined
+   * no-op -- except `n == PTRDIFF_MIN`, whose negation `-n` is itself
+   * signed-overflow UB.
+   *
+   * @param self The iterator to move.
+   * @param n The signed number of elements to move (positive = forward).
+   */
+  void (*advance_by)(tk_iterator_t *self, ptrdiff_t n);
+
+  /**
+   * @brief (Random access) Returns the signed number of steps from `a` to `b`,
+   * i.e. (index of b) - (index of a).
+   *
+   * MUST be non-NULL iff category == TK_ITER_RANDOM_ACCESS; MUST be NULL
+   * otherwise (enforced by tk_iterator_vtable_validate).
+   *
+   * @pre `a` and `b` must come from the SAME container instance. The protocol
+   * can only check vtable identity, so two iterators of the same type but from
+   * two DIFFERENT container instances cannot be detected and produce an
+   * unspecified result. When the precondition holds, the result is positive
+   * when `b` is ahead of `a`, negative when behind, and zero when they denote
+   * the same position.
+   *
+   * @param a The "from" iterator.
+   * @param b The "to" iterator.
+   * @return The signed element distance from `a` to `b`.
+   */
+  ptrdiff_t (*distance)(const tk_iterator_t *a, const tk_iterator_t *b);
+
 } tk_iterator_vtable_t;
 
 /**
  * @brief A macro to safely and consistently define an iterator vtable.
  *
- * Use this for bidirectional or random-access iterators (those that provide a
- * `PREFIX##_retreat` function). It ensures all function pointers and metadata
- * fields are set, preventing incomplete or inconsistent vtable definitions as
- * the interface evolves.
+ * Use this for bidirectional iterators (those that provide a `PREFIX##_retreat`
+ * function but no random-access slots). It ensures all function pointers and
+ * metadata fields are set, preventing incomplete or inconsistent vtable
+ * definitions as the interface evolves.
+ *
+ * The random-access slots are explicitly set to NULL: a bidirectional iterator
+ * has no O(1) offset movement, and leaving these slots non-NULL would falsely
+ * advertise random-access capability (see
+ * TK_DEFINE_RANDOM_ACCESS_ITERATOR_VTABLE for the random-access variant).
  *
  * @param PREFIX The unique prefix for the iterator's static functions
- * (e.g., `tk_vec_iter`). The prefix MUST define `_advance`, `_get`, `_equal`,
+ * (e.g., `tk_list_iter`). The prefix MUST define `_advance`, `_get`, `_equal`,
  * `_clone` and `_retreat`.
- * @param CATEGORY The `tk_iter_category_t` for this iterator
- * (e.g., `TK_ITER_RANDOM_ACCESS`). Must be >= TK_ITER_BIDIRECTIONAL.
+ * @param CATEGORY The `tk_iter_category_t` for this iterator. Must be
+ * TK_ITER_BIDIRECTIONAL.
  * @param TYPENAME A string literal for this iterator's type
- * (e.g., "tk_vec_iterator").
+ * (e.g., "tk_list_iterator").
  */
 #define TK_DEFINE_ITERATOR_VTABLE(PREFIX, CATEGORY, TYPENAME)                  \
   {.category = (CATEGORY),                                                     \
@@ -143,7 +200,9 @@ typedef struct {
    .get = PREFIX##_get,                                                        \
    .equal = PREFIX##_equal,                                                    \
    .clone = PREFIX##_clone,                                                    \
-   .retreat = PREFIX##_retreat}
+   .retreat = PREFIX##_retreat,                                                \
+   .advance_by = NULL,                                                         \
+   .distance = NULL}
 
 /**
  * @brief Defines a vtable for a forward-only iterator.
@@ -153,6 +212,9 @@ typedef struct {
  * matters because the ternary expression used previously would still name the
  * missing symbol at compile time, breaking the build for any container that
  * (correctly) omits `_retreat`.
+ *
+ * The random-access slots are set to NULL as well: a forward iterator has
+ * neither O(1) offset movement nor O(1) distance.
  *
  * @param PREFIX The unique prefix for the iterator's static functions. The
  * prefix MUST define `_advance`, `_get`, `_equal` and `_clone` (but no
@@ -166,7 +228,37 @@ typedef struct {
    .get = PREFIX##_get,                                                        \
    .equal = PREFIX##_equal,                                                    \
    .clone = PREFIX##_clone,                                                    \
-   .retreat = NULL}
+   .retreat = NULL,                                                            \
+   .advance_by = NULL,                                                         \
+   .distance = NULL}
+
+/**
+ * @brief Defines a vtable for a random-access iterator.
+ *
+ * A random-access iterator additionally provides O(1) offset movement and
+ * distance, so this macro populates BOTH new slots by referencing
+ * `PREFIX##_advance_by` and `PREFIX##_distance`. Using it keeps the
+ * random-access capability declaration in lock-step with the implementation.
+ *
+ * @note Do NOT use TK_DEFINE_ITERATOR_VTABLE with TK_ITER_RANDOM_ACCESS: that
+ * macro leaves the two random-access slots NULL, which the vtable validator
+ * rejects for a random-access category.
+ *
+ * @param PREFIX The unique prefix for the iterator's static functions. The
+ * prefix MUST define `_advance`, `_get`, `_equal`, `_clone`, `_retreat`,
+ * `_advance_by` and `_distance`.
+ * @param TYPENAME A string literal for this iterator's type.
+ */
+#define TK_DEFINE_RANDOM_ACCESS_ITERATOR_VTABLE(PREFIX, TYPENAME)              \
+  {.category = TK_ITER_RANDOM_ACCESS,                                          \
+   .type_name = (TYPENAME),                                                    \
+   .advance = PREFIX##_advance,                                                \
+   .get = PREFIX##_get,                                                        \
+   .equal = PREFIX##_equal,                                                    \
+   .clone = PREFIX##_clone,                                                    \
+   .retreat = PREFIX##_retreat,                                                \
+   .advance_by = PREFIX##_advance_by,                                          \
+   .distance = PREFIX##_distance}
 
 /**
  * @brief The unified, polymorphic iterator type.
@@ -203,8 +295,9 @@ struct tk_iterator_t {
  * @brief Validates the completeness of a vtable in debug builds.
  *
  * Asserts that all essential function pointers and metadata fields are
- * non-NULL, and that `retreat` is present if and only if the category is at
- * least bidirectional.
+ * non-NULL, that `retreat` is present if and only if the category is at
+ * least bidirectional, and that the two random-access slots are present if
+ * and only if the category is random-access.
  * @param vtable A pointer to the vtable to validate.
  */
 static inline void
@@ -222,6 +315,12 @@ tk_iterator_vtable_validate(const tk_iterator_vtable_t *vtable) {
   // ...and forward-only iterators must NOT provide one.
   TK_ASSERT((vtable->category >= TK_ITER_BIDIRECTIONAL) ||
             (vtable->retreat == NULL));
+  // Random-access iterators must provide BOTH random-access slots...
+  TK_ASSERT((vtable->category < TK_ITER_RANDOM_ACCESS) ||
+            (vtable->advance_by != NULL && vtable->distance != NULL));
+  // ...and non-random-access iterators must provide NEITHER of them.
+  TK_ASSERT((vtable->category >= TK_ITER_RANDOM_ACCESS) ||
+            (vtable->advance_by == NULL && vtable->distance == NULL));
 }
 
 /**
@@ -305,6 +404,66 @@ static inline void tk_iter_prev(tk_iterator_t *iter) {
             TK_ITER_BIDIRECTIONAL);         // Ensure capability
   TK_ASSERT(iter->vtable->retreat != NULL); // Ensure function exists
   iter->vtable->retreat(iter);
+}
+
+/**
+ * @brief (Random access) Moves the iterator by `n` elements.
+ *
+ * Only valid for random-access iterators; calling it on a forward/bidirectional
+ * iterator is a caller precondition violation. In debug builds this is caught
+ * by an assertion; in release builds (NDEBUG) the assertions are compiled out
+ * and NO diagnostic is emitted -- the call then degrades to a silent no-op,
+ * because a non-random-access vtable leaves its `advance_by` slot NULL. An
+ * invalid iterator (vtable == NULL) is likewise a no-op.
+ *
+ * @pre The result must not move past end(); this cannot be detected. A
+ * negative `n` that would move before begin() is clamped at begin(). Extreme
+ * `n` (signed overflow of `n * element_size`) is a caller violation.
+ *
+ * @param iter A pointer to the iterator to move.
+ * @param n The signed number of elements to move (positive = forward).
+ */
+static inline void tk_iter_advance_by(tk_iterator_t *iter, ptrdiff_t n) {
+  if (iter->vtable == NULL)
+    return; // invalid iterator: no-op
+  TK_ASSERT(iter->vtable->category == TK_ITER_RANDOM_ACCESS &&
+            "tk_iter_advance_by requires a RANDOM_ACCESS iterator");
+  TK_ASSERT(iter->vtable->advance_by != NULL);
+  if (iter->vtable->advance_by != NULL) // release-time defence: no-op if absent
+    iter->vtable->advance_by(iter, n);
+}
+
+/**
+ * @brief (Random access) Returns the signed number of steps from `a` to `b`,
+ * i.e. (index of b) - (index of a).
+ *
+ * If either iterator is invalid (vtable == NULL), or the two iterators are not
+ * comparable (different container types), or the iterator is not random-access,
+ * this returns 0 as a sentinel (mirroring how tk_iter_equal reports "not
+ * comparable" as false).
+ *
+ * In debug builds the caller-violation cases (mismatched vtables, non
+ * random-access operands) are caught by assertions; in release builds (NDEBUG)
+ * the assertions are compiled out and NO diagnostic is emitted -- the function
+ * simply returns the 0 sentinel. Note the sentinel cannot be distinguished
+ * from a genuine distance of 0.
+ *
+ * @param a The "from" iterator.
+ * @param b The "to" iterator.
+ * @return The signed element distance from `a` to `b`, or 0 when undefined.
+ */
+static inline ptrdiff_t tk_iter_distance(const tk_iterator_t *a,
+                                         const tk_iterator_t *b) {
+  if (a->vtable == NULL || b->vtable == NULL)
+    return 0; // invalid: not comparable
+  TK_ASSERT(a->vtable == b->vtable &&
+            "tk_iter_distance: iterators from different container types");
+  TK_ASSERT(a->vtable->category == TK_ITER_RANDOM_ACCESS &&
+            "tk_iter_distance requires RANDOM_ACCESS iterators");
+  TK_ASSERT(a->vtable->distance != NULL);
+  if (a->vtable != b->vtable || a->vtable->distance == NULL)
+    return 0; // release-time defence
+  return a->vtable->distance(a, b);
 }
 
 #endif // TOOLKIT_CORE_ITERATOR_H

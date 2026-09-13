@@ -108,29 +108,74 @@ size_t tk_vec_capacity(const tk_vec_t *vec);
 tk_error_t tk_vec_reserve(tk_vec_t *vec, size_t n);
 
 // --- Element Access Functions ---
+// Each accessor comes in two const-correct forms, mirroring tk_list_t:
+//   - the read form takes a `const tk_vec_t *` and returns `const void *`;
+//   - the `_mut` form takes a non-const `tk_vec_t *` and returns `void *`.
+// All forms share the same sentinel behaviour: a NULL handle, an empty vector,
+// or an out-of-bounds index yields NULL.
 
 /**
- * @brief Returns a pointer to the element at the specified index, with bounds
- * checking.
+ * @brief Returns a read-only pointer to the element at the specified index,
+ * with bounds checking.
+ *
+ * Use this with a `const tk_vec_t *`. To modify the element, obtain a
+ * non-const handle and call tk_vec_at_mut().
  * @param vec A constant pointer to the vector handle. If NULL, returns NULL.
  * @param index The index of the element to access.
- * @return A pointer to the element, or NULL if the index is out of bounds.
+ * @return A read-only pointer to the element, or NULL if `vec` is NULL or the
+ * index is out of bounds.
+ * @note Writing through this pointer would require casting away const, which
+ * defeats the purpose of the const handle; use tk_vec_at_mut() to write.
  */
-void *tk_vec_at(const tk_vec_t *vec, size_t index);
+const void *tk_vec_at(const tk_vec_t *vec, size_t index);
 
 /**
- * @brief Returns a pointer to the first element in the vector.
- * @param vec A constant pointer to the vector handle. If NULL, returns NULL.
- * @return A pointer to the first element, or NULL if the vector is empty.
+ * @brief Returns a writable pointer to the element at the specified index,
+ * with bounds checking.
+ * @param vec A non-const pointer to the vector handle. If NULL, returns NULL.
+ * @param index The index of the element to access.
+ * @return A writable pointer to the element, or NULL if `vec` is NULL or the
+ * index is out of bounds.
  */
-void *tk_vec_front(const tk_vec_t *vec);
+void *tk_vec_at_mut(tk_vec_t *vec, size_t index);
 
 /**
- * @brief Returns a pointer to the last element in the vector.
+ * @brief Returns a read-only pointer to the first element in the vector.
+ *
+ * Use this with a `const tk_vec_t *`. To modify the element, obtain a
+ * non-const handle and call tk_vec_front_mut().
  * @param vec A constant pointer to the vector handle. If NULL, returns NULL.
- * @return A pointer to the last element, or NULL if the vector is empty.
+ * @return A read-only pointer to the first element, or NULL if `vec` is NULL
+ * or the vector is empty.
  */
-void *tk_vec_back(const tk_vec_t *vec);
+const void *tk_vec_front(const tk_vec_t *vec);
+
+/**
+ * @brief Returns a writable pointer to the first element in the vector.
+ * @param vec A non-const pointer to the vector handle. If NULL, returns NULL.
+ * @return A writable pointer to the first element, or NULL if `vec` is NULL or
+ * the vector is empty.
+ */
+void *tk_vec_front_mut(tk_vec_t *vec);
+
+/**
+ * @brief Returns a read-only pointer to the last element in the vector.
+ *
+ * Use this with a `const tk_vec_t *`. To modify the element, obtain a
+ * non-const handle and call tk_vec_back_mut().
+ * @param vec A constant pointer to the vector handle. If NULL, returns NULL.
+ * @return A read-only pointer to the last element, or NULL if `vec` is NULL or
+ * the vector is empty.
+ */
+const void *tk_vec_back(const tk_vec_t *vec);
+
+/**
+ * @brief Returns a writable pointer to the last element in the vector.
+ * @param vec A non-const pointer to the vector handle. If NULL, returns NULL.
+ * @return A writable pointer to the last element, or NULL if `vec` is NULL or
+ * the vector is empty.
+ */
+void *tk_vec_back_mut(tk_vec_t *vec);
 
 // --- Modifiers ---
 

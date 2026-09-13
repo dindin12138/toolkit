@@ -85,8 +85,10 @@ void tk_vec_destroy_full(tk_vec_t *vec, tk_element_destroyer_t destroyer) {
   if (destroyer) {
     size_t size = tk_vec_size(vec);
     for (size_t i = 0; i < size; ++i) {
-      // tk_vec_at returns a pointer TO the element in the array
-      void *element_ptr = tk_vec_at(vec, i);
+      // tk_vec_at_mut returns a pointer TO the element in the array. We use the
+      // mutable variant here because the destroyer may free resources owned by
+      // the element (and `vec` is non-const in this function).
+      void *element_ptr = tk_vec_at_mut(vec, i);
       if (element_ptr) {
         destroyer(element_ptr);
       }
@@ -142,24 +144,55 @@ tk_error_t tk_vec_reserve(tk_vec_t *vec, size_t n) {
 // --- Element Access Functions ---
 // Note: These functions are inherently correct because their byte-offset
 // arithmetic aligns perfectly with our `char*` internal storage.
+//
+// The read and mutable forms share a single internal helper so the bounds
+// logic cannot drift between them. The helper returns a plain `char *`:
+// accessed through a `const tk_vec_t *`, `vec->stb_array` has type
+// `char *const` -- the POINTER is const but the pointed-to chars are still
+// writable, so `stb_array + offset` is already `char *`. No const is cast
+// away anywhere below.
 
-void *tk_vec_at(const tk_vec_t *vec, size_t index) {
+/**
+ * @brief Internal: the byte address of element `index`, or NULL.
+ *
+ * Returns NULL for a NULL handle, an empty vector or an out-of-bounds index.
+ * The returned pointer addresses the vector's independent element storage,
+ * which is not part of the const-qualified handle object itself.
+ *
+ * @param vec A constant pointer to the vector handle.
+ * @param index The element index.
+ * @return A `char *` to the element's bytes, or NULL if out of bounds.
+ */
+static char *tk_vec_element_ptr(const tk_vec_t *vec, size_t index) {
   if (!vec || index >= tk_vec_size(vec))
     return NULL;
   return vec->stb_array + (index * vec->element_size);
 }
 
-void *tk_vec_front(const tk_vec_t *vec) {
-  if (!vec || tk_vec_is_empty(vec))
-    return NULL;
-  return vec->stb_array;
+const void *tk_vec_at(const tk_vec_t *vec, size_t index) {
+  return tk_vec_element_ptr(vec, index); // char* -> const void* (adds const)
 }
 
-void *tk_vec_back(const tk_vec_t *vec) {
+void *tk_vec_at_mut(tk_vec_t *vec, size_t index) {
+  return tk_vec_element_ptr(vec, index); // char* -> void* (compatible)
+}
+
+const void *tk_vec_front(const tk_vec_t *vec) {
+  return tk_vec_element_ptr(vec, 0);
+}
+
+void *tk_vec_front_mut(tk_vec_t *vec) { return tk_vec_element_ptr(vec, 0); }
+
+const void *tk_vec_back(const tk_vec_t *vec) {
   if (!vec || tk_vec_is_empty(vec))
     return NULL;
-  size_t last_index = tk_vec_size(vec) - 1;
-  return vec->stb_array + (last_index * vec->element_size);
+  return tk_vec_element_ptr(vec, tk_vec_size(vec) - 1);
+}
+
+void *tk_vec_back_mut(tk_vec_t *vec) {
+  if (!vec || tk_vec_is_empty(vec))
+    return NULL;
+  return tk_vec_element_ptr(vec, tk_vec_size(vec) - 1);
 }
 
 // --- Modifiers ---
@@ -249,6 +282,55 @@ static void tk_vec_iter_retreat(tk_iterator_t *self) {
 }
 
 /**
+ * @brief (vtable) Moves the vector iterator by `n` elements.
+ *
+ * Required for TK_ITER_RANDOM_ACCESS. This is O(1): a single pointer
+ * adjustment of `n * element_size` bytes.
+ *
+ * Contract (see iterator.h): moving past end() is a caller precondition
+ * violation and is not detectable here. A negative `n` that would move before
+ * begin() is clamped at begin(), mirroring the retreat contract, so an
+ * underflowing move is a well-defined no-op rather than undefined behaviour.
+ */
+static void tk_vec_iter_advance_by(tk_iterator_t *self, ptrdiff_t n) {
+  tk_vec_iter_state_t *state = (tk_vec_iter_state_t *)self->state.data;
+
+  if (n < 0) {
+    // Number of elements currently between begin() and the current position.
+    ptrdiff_t back =
+        (state->ptr - state->begin) / (ptrdiff_t)state->element_size;
+    // Clamp at begin(): never step out of bounds on the low side.
+    if (-n > back)
+      n = -back;
+  }
+
+  // `n` and element_size are both ptrdiff_t here, so the product is a signed
+  // byte offset and no sign-conversion warning is emitted.
+  state->ptr += n * (ptrdiff_t)state->element_size;
+}
+
+/**
+ * @brief (vtable) Returns the signed element distance from `a` to `b`.
+ *
+ * Required for TK_ITER_RANDOM_ACCESS. Returns (index of b) - (index of a) in
+ * *elements* (not bytes); the byte difference is divided by element_size.
+ *
+ * The `a->vtable == b->vtable` check is an internal invariant asserted by the
+ * tk_iter_distance wrapper (a caller violation); it is re-checked here as a
+ * cheap internal invariant.
+ */
+static ptrdiff_t tk_vec_iter_distance(const tk_iterator_t *a,
+                                      const tk_iterator_t *b) {
+  const tk_vec_iter_state_t *sa =
+      (const tk_vec_iter_state_t *)a->state.data;
+  const tk_vec_iter_state_t *sb =
+      (const tk_vec_iter_state_t *)b->state.data;
+  TK_ASSERT(a->vtable == b->vtable);
+  // Return element count, not bytes: divide the byte delta by element_size.
+  return (ptrdiff_t)((sb->ptr - sa->ptr) / (ptrdiff_t)sa->element_size);
+}
+
+/**
  * @brief (vtable) Gets the data pointer from the vector iterator.
  */
 static void *tk_vec_iter_get(const tk_iterator_t *self) {
@@ -288,13 +370,13 @@ static void tk_vec_iter_clone(tk_iterator_t *dest, const tk_iterator_t *src) {
 /**
  * @brief The single, static vtable for all tk_vec_t iterators.
  *
- * This uses the TK_DEFINE_ITERATOR_VTABLE macro to ensure all
- * function pointers and metadata fields are correctly initialized.
+ * This uses the TK_DEFINE_RANDOM_ACCESS_ITERATOR_VTABLE macro, which populates
+ * the `retreat`, `advance_by` and `distance` slots required by the
+ * TK_ITER_RANDOM_ACCESS category.
  */
 static const tk_iterator_vtable_t g_vec_vtable =
-    TK_DEFINE_ITERATOR_VTABLE(tk_vec_iter,           /* Function Prefix */
-                              TK_ITER_RANDOM_ACCESS, /* Category */
-                              "tk_vec_iterator");    /* Type Name */
+    TK_DEFINE_RANDOM_ACCESS_ITERATOR_VTABLE(tk_vec_iter, /* Function Prefix */
+                                            "tk_vec_iterator"); /* Type Name */
 
 // --- Public iterator function implementations ---
 

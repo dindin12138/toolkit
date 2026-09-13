@@ -10,16 +10,34 @@ This project is my journey to create such a toolkit. My goal is to build a set o
 
 This library provides a set of generic, easy-to-use data structures and algorithms.
 
-The main design feature is a **polymorphic iterator system**, inspired by the C++ STL. This allows me to write generic algorithms (like `find`, `sort`, etc.) that can operate on any data structure in the toolkit, without needing to know the container's internal details.
+The main design feature is a **polymorphic iterator system**, inspired by the C++ STL. This allows me to write generic algorithms (like `tk_algo_find_if`, and in the future `sort`, etc.) that can operate on any data structure in the toolkit, without needing to know the container's internal details.
 
 To get started quickly and build upon battle-tested code, the initial data structures are implemented as wrappers around a well-known, high-quality, single-header library: [stb](https://github.com/nothings/stb) `stb_ds.h`. In the future, other structures might be added by wrapping other libraries or by implementing them from scratch.
 
 ## Current Features
 
-- A generic, dynamic vector (`tk_vec_t`).
-- A doubly linked list (`tk_list_t`).
-- A polymorphic iterator system.
-- A simple `tk_algo_find_if` algorithm to demonstrate the iterator concept.
+- A generic, dynamic vector (`tk_vec_t`), with random-access iterators.
+- A doubly linked list (`tk_list_t`), with bidirectional iterators.
+- A polymorphic iterator system with capability categories (`FORWARD`,
+  `BIDIRECTIONAL`, `RANDOM_ACCESS`) and a validated vtable protocol.
+- Random-access protocol support: `tk_iter_advance_by` (O(1) offset movement)
+  and `tk_iter_distance` (O(1) element distance), advertised only by
+  random-access iterators.
+- Generic sequence algorithms (`<tk/algo/sequence.h>`), all operating on the
+  polymorphic iterator interface:
+  - `tk_algo_find_if` — first element matching a predicate;
+  - `tk_algo_for_each` — call a function on every element (in place);
+  - `tk_algo_count` / `tk_algo_count_if` — count matching elements;
+  - `tk_algo_copy` / `tk_algo_transform` — write a range into an output range.
+    Note: `tk_algo_copy` requires the caller to pass `element_size` explicitly
+    (unlike STL's three-argument `copy`), because under type erasure the
+    algorithm cannot know the element size; `tk_algo_transform` does not, as
+    its `op` handles the element write itself.
+- Generic numeric algorithms (`<tk/algo/numeric.h>`):
+  - `tk_algo_accumulate` — fold a range into a caller-owned accumulator.
+- The umbrella header `<tk/algo/algo.h>` includes every algorithm module.
+- Algorithms are container-agnostic: the same call works across containers
+  (e.g. copying a `tk_list_t` into a `tk_vec_t`).
 - A standardized error-handling system using the `tk_error_t` enum.
 
 ## How to Build and Test
@@ -67,5 +85,7 @@ ctest --test-dir build-asan --output-on-failure
 As I learn more and my needs for future projects grow, I plan to:
 
 - Add more data structures, such as a hash map.
-- Expand the algorithm library with functions for sorting, copying, and transforming elements.
+- Expand the algorithm library further (sorting, and more `<numeric>`
+  algorithms such as `reduce` / `partial_sum`); copying and transforming are
+  already available.
 - Continuously refine the API to make it as clean and useful as possible for my own use.

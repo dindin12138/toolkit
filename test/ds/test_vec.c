@@ -51,6 +51,137 @@ Test(vec_suite, push_and_pop) {
   cr_assert_eq(*(int *)tk_vec_back(vec), 10);
 }
 
+// --- P1-2: const-correct element access (read variants + _mut variants) ---
+
+/**
+ * @brief The mutable accessors must return writable pointers to the correct
+ * element; the values written are then verified through the read accessors.
+ */
+Test(vec_suite, access_mut_variants_write) {
+  int a = 1, b = 2, c = 3;
+  tk_vec_push_back(vec, &a); // index 0
+  tk_vec_push_back(vec, &b); // index 1
+  tk_vec_push_back(vec, &c); // index 2
+
+  // Write through the mutable variants.
+  *(int *)tk_vec_front_mut(vec) = 111; // first
+  *(int *)tk_vec_at_mut(vec, 1) = 100; // middle
+  *(int *)tk_vec_back_mut(vec) = 222;  // last
+
+  // Read back through the read-only variants and assert.
+  cr_assert_eq(*(const int *)tk_vec_at(vec, 0), 111);
+  cr_assert_eq(*(const int *)tk_vec_at(vec, 1), 100);
+  cr_assert_eq(*(const int *)tk_vec_at(vec, 2), 222);
+  cr_assert_eq(*(const int *)tk_vec_front(vec), 111);
+  cr_assert_eq(*(const int *)tk_vec_back(vec), 222);
+}
+
+/**
+ * @brief The read accessors must accept a `const tk_vec_t *` handle and return
+ * the correct values.
+ */
+Test(vec_suite, access_const_variants_on_const_handle) {
+  int a = 10, b = 20, c = 30;
+  tk_vec_push_back(vec, &a);
+  tk_vec_push_back(vec, &b);
+  tk_vec_push_back(vec, &c);
+
+  const tk_vec_t *cv = vec; // read-only view of the same vector
+
+  cr_assert_eq(*(const int *)tk_vec_at(cv, 0), 10);
+  cr_assert_eq(*(const int *)tk_vec_at(cv, 2), 30);
+  cr_assert_eq(*(const int *)tk_vec_front(cv), 10);
+  cr_assert_eq(*(const int *)tk_vec_back(cv), 30);
+}
+
+/**
+ * @brief The `_mut` accessors share the read accessors' sentinel behaviour:
+ * a NULL handle, an empty vector, or an out-of-bounds index yields NULL.
+ */
+Test(vec_suite, access_mut_null_and_bounds) {
+  // NULL handle.
+  cr_assert_null(tk_vec_at_mut(NULL, 0));
+  cr_assert_null(tk_vec_front_mut(NULL));
+  cr_assert_null(tk_vec_back_mut(NULL));
+
+  // Empty vector.
+  cr_assert_null(tk_vec_at_mut(vec, 0));
+  cr_assert_null(tk_vec_front_mut(vec));
+  cr_assert_null(tk_vec_back_mut(vec));
+
+  // One element: index 0 is valid, everything else is out of bounds.
+  int v = 7;
+  tk_vec_push_back(vec, &v);
+  cr_assert_not_null(tk_vec_at_mut(vec, 0));
+  cr_assert_not_null(tk_vec_front_mut(vec));
+  cr_assert_not_null(tk_vec_back_mut(vec));
+  cr_assert_null(tk_vec_at_mut(vec, 1), "at_mut(size) must be out of bounds");
+  cr_assert_null(tk_vec_at_mut(vec, 100),
+                 "at_mut(large_index) must be out of bounds");
+}
+
+/**
+ * @brief Compile-time signature pins for the six P1-2 accessors.
+ *
+ * Each initializer below pins one accessor's *exact* function type. Function
+ * pointer assignment requires the whole function type to match verbatim
+ * (every parameter type AND the return type), so any drift in any of the six
+ * signatures is an incompatible-function-pointer-types diagnostic:
+ *   - if a read accessor (tk_vec_at / tk_vec_front / tk_vec_back) stopped
+ *     returning `const void *` (e.g. regressed to `void *`);
+ *   - if a read accessor stopped taking a `const tk_vec_t *` (i.e. its
+ *     *parameter* regressed to a non-const `tk_vec_t *`); or
+ *   - if a mutable accessor (tk_vec_at_mut / tk_vec_front_mut /
+ *     tk_vec_back_mut) stopped taking a non-const `tk_vec_t *` (e.g. started
+ *     taking `const tk_vec_t *`),
+ * this test target would fail to compile.
+ *
+ * This is what makes the const-correctness contract *enforced* rather than
+ * review-only: assigning the result of a read accessor to a `const void *`
+ * local (the previous approach) proves nothing, because `void *` -> `const
+ * void *` is a legal implicit conversion. Because a function pointer pins the
+ * whole function type, these six lines cover the read accessors' *parameters*
+ * (which must stay `const tk_vec_t *`) as well as their return types.
+ *
+ * Guarantee and its boundary: this project's *test targets* compile with
+ * `-Werror=incompatible-function-pointer-types` (see CMakeLists.txt) and Clang
+ * diagnoses the mismatch by default too, so the pins hold in both the default
+ * and the hardened build. Note, however, that this is a *default-error but
+ * suppressible diagnostic*, NOT a language-level constraint -- C99 offers no
+ * `_Static_assert` / `_Generic` to pin a signature at compile time. A build
+ * that passed `-Wno-incompatible-function-pointer-types` (or otherwise
+ * suppressed the diagnostic) could therefore compile a regressed signature
+ * silently. This project adds no such flag, so the guarantee holds in
+ * practice; the narrow `-Werror=` above exists precisely so that "error by
+ * default" no longer depends on a particular compiler version's default
+ * behaviour.
+ *
+ * The six calls at the end consume the pins so the compiler cannot report
+ * them as unused; they also double as a runtime sanity check.
+ */
+Test(vec_suite, access_exact_signature_pins) {
+  int v = 5;
+  tk_vec_push_back(vec, &v); // exactly one element, at index 0
+
+  const tk_vec_t *cv = vec;
+
+  // --- The six signature pins (compile-time) ---
+  const void *(*const p_at)(const tk_vec_t *, size_t) = tk_vec_at;
+  void *(*const p_at_mut)(tk_vec_t *, size_t) = tk_vec_at_mut;
+  const void *(*const p_front)(const tk_vec_t *) = tk_vec_front;
+  void *(*const p_front_mut)(tk_vec_t *) = tk_vec_front_mut;
+  const void *(*const p_back)(const tk_vec_t *) = tk_vec_back;
+  void *(*const p_back_mut)(tk_vec_t *) = tk_vec_back_mut;
+
+  // --- Consume the pins (also a one-element runtime sanity check) ---
+  cr_assert_eq(*(const int *)p_at(cv, 0), 5);
+  cr_assert_eq(*(const int *)p_front(cv), 5);
+  cr_assert_eq(*(const int *)p_back(cv), 5);
+  cr_assert_eq(*(int *)p_at_mut(vec, 0), 5);
+  cr_assert_eq(*(int *)p_front_mut(vec), 5);
+  cr_assert_eq(*(int *)p_back_mut(vec), 5);
+}
+
 Test(vec_suite, reallocation) {
   int num_elements = 1000;
   for (int i = 0; i < num_elements; ++i) {
