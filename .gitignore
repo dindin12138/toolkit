@@ -14,3 +14,6 @@ devenv.local.yaml
 
 # pre-commit
 .pre-commit-config.yaml
+
+# agent workspace data (local notes, not for the public repo)
+.workbuddy-ai/
