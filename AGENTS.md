@@ -4,6 +4,14 @@
 
 **Chinese** for the conversation: chat replies, explanations, summaries of what you did.
 
+## Dev Environment
+
+Toolchain is provided by nix + devenv. No dev tools are installed globally on this machine; do not install any.
+
+Prefix dev commands with `direnv exec . ` (e.g. `direnv exec . cargo test`); if direnv is unavailable, use `devenv shell -- <command>`.
+
+If that still fails, stop and tell me. Do not install tools or change environment config on your own.
+
 ## Agent skills
 
 ### Issue tracker
