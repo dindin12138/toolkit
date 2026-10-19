@@ -50,6 +50,12 @@ static void fake_fwd_clone(tk_iterator_t *dest, const tk_iterator_t *src) {
   *dest = *src;
 }
 
+// Element size is mandatory for every category; this fake iterates `int`s.
+static size_t fake_fwd_element_size(const tk_iterator_t *self) {
+  (void)self;
+  return sizeof(int);
+}
+
 static const tk_iterator_vtable_t g_fake_fwd_vtable =
     TK_DEFINE_FORWARD_ITERATOR_VTABLE(fake_fwd, "fake_forward_iterator");
 

@@ -21,8 +21,11 @@
  *  - tk_algo_for_each : call f on every element, in place (returns void)
  *  - tk_algo_count_if : count elements matching a predicate (returns size_t)
  *  - tk_algo_count    : count elements equal to a value via eq (returns size_t)
- *  - tk_algo_copy     : byte-copy the range into an output range
+ *  - tk_algo_copy     : byte-copy the range into an output range, using the
+ *                       source iterator's element size
  *                       (returns the output iterator past the last write)
+ *  - tk_algo_swap     : exchange the elements at two iterator positions
+ *                       (byte-wise, any element size, no allocation)
  *  - tk_algo_transform: write op(in) into an output range
  *                       (returns the output iterator past the last write)
  *

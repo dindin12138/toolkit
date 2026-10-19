@@ -152,7 +152,7 @@ Test(vec_algo_suite, copy_vec_to_vec_content_and_return) {
   tk_iterator_t src_end = tk_vec_end(vec_int);
   tk_iterator_t out = tk_vec_begin(dst);
 
-  tk_iterator_t ret = tk_algo_copy(src_begin, src_end, out, sizeof(int));
+  tk_iterator_t ret = tk_algo_copy(src_begin, src_end, out);
 
   int expected[] = {10, 20, 30, 40, 50};
   for (int i = 0; i < 5; ++i) {
@@ -179,7 +179,7 @@ Test(vec_algo_suite, copy_empty_range_returns_out) {
   tk_iterator_t out = tk_vec_begin(dst);
   tk_iterator_t out_orig = out;
 
-  tk_iterator_t ret = tk_algo_copy(src_begin, src_end, out, sizeof(int));
+  tk_iterator_t ret = tk_algo_copy(src_begin, src_end, out);
 
   cr_assert(tk_iter_equal(&ret, &out_orig) == true,
             "copy of an empty range must return the incoming out iterator");

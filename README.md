@@ -20,6 +20,9 @@ To get started quickly and build upon battle-tested code, the initial data struc
 - A doubly linked list (`tk_list_t`), with bidirectional iterators.
 - A polymorphic iterator system with capability categories (`FORWARD`,
   `BIDIRECTIONAL`, `RANDOM_ACCESS`) and a validated vtable protocol.
+- Element size is part of the protocol: every iterator reports the byte size of
+  one element, at every position (including `end()`), so algorithms can move
+  elements without the caller supplying a size.
 - Random-access protocol support: `tk_iter_advance_by` (O(1) offset movement)
   and `tk_iter_distance` (O(1) element distance), advertised only by
   random-access iterators.
@@ -29,10 +32,10 @@ To get started quickly and build upon battle-tested code, the initial data struc
   - `tk_algo_for_each` — call a function on every element (in place);
   - `tk_algo_count` / `tk_algo_count_if` — count matching elements;
   - `tk_algo_copy` / `tk_algo_transform` — write a range into an output range.
-    Note: `tk_algo_copy` requires the caller to pass `element_size` explicitly
-    (unlike STL's three-argument `copy`), because under type erasure the
-    algorithm cannot know the element size; `tk_algo_transform` does not, as
-    its `op` handles the element write itself.
+    `tk_algo_copy` is a three-argument copy like STL's: it reads the element
+    size from the source iterator instead of taking one;
+  - `tk_algo_swap` — exchange the elements at two iterator positions, byte-wise,
+    for any element size, without allocating.
 - Generic numeric algorithms (`<tk/algo/numeric.h>`):
   - `tk_algo_accumulate` — fold a range into a caller-owned accumulator.
 - The umbrella header `<tk/algo/algo.h>` includes every algorithm module.

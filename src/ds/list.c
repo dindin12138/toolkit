@@ -468,6 +468,23 @@ static void tk_list_iter_clone(tk_iterator_t *dest, const tk_iterator_t *src) {
 }
 
 /**
+ * @brief (vtable) Returns the byte size of one element.
+ *
+ * Required for every iterator category. The size is the list's, reached
+ * through the iterator's `list` back-pointer, so it is answerable at every
+ * position -- including end(), where `node` is NULL but the range still has an
+ * element size. The state deliberately does not cache the size: one source of
+ * truth cannot drift.
+ */
+static size_t tk_list_iter_element_size(const tk_iterator_t *self) {
+  const tk_list_iter_state_t *state =
+      (const tk_list_iter_state_t *)self->state.data;
+  // Every valid list iterator records its list; guard anyway so a malformed
+  // iterator reports "no element" (0) instead of dereferencing NULL.
+  return state->list ? state->list->element_size : 0;
+}
+
+/**
  * @brief The single, static vtable for all tk_list_t iterators.
  * Uses the updated TK_DEFINE_ITERATOR_VTABLE macro.
  */
@@ -498,6 +515,9 @@ tk_iterator_t tk_list_begin(tk_list_t *list) {
 
 tk_iterator_t tk_list_end(tk_list_t *list) {
   TK_ASSERT(list != NULL);
+  // Validate here too: a caller that only ever asks for end() (e.g. an empty
+  // source range) must still be told about an incomplete vtable.
+  tk_iterator_vtable_validate(&g_list_vtable);
   tk_iterator_t iter;
   iter.vtable = &g_list_vtable;
 

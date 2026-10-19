@@ -27,8 +27,8 @@
  *   bounds (vec) or silently jumping to end() (list).
  * - An invalid iterator (vtable == NULL, returned by tk_list_erase_at on
  *   error) must not be dereferenced; the tk_iter_* helpers below treat it as a
- *   no-op (next/prev), return NULL (get) or report "not equal to anything"
- *   (equal).
+ *   no-op (next/prev), return NULL (get), report 0 (element_size) or report
+ *   "not equal to anything" (equal).
  */
 #ifndef TOOLKIT_CORE_ITERATOR_H
 #define TOOLKIT_CORE_ITERATOR_H
@@ -77,6 +77,24 @@ typedef struct {
    * Used in debug builds to assert type safety.
    */
   const char *type_name;
+
+  /**
+   * @brief Returns the number of bytes occupied by one element of the range.
+   *
+   * MANDATORY for every iterator category. Algorithms that move elements
+   * (copying, swapping, sorting) work under type erasure, so the range itself
+   * must report its element size; there is no other source of truth.
+   * tk_iterator_vtable_validate rejects any vtable that leaves this NULL, so a
+   * new container cannot register a vtable without implementing it.
+   *
+   * The answer must be available at EVERY position, including end(): an empty
+   * range still reports the size of the elements it would have held. The
+   * accessor must not dereference the element -- only the iterator's own state.
+   *
+   * @param self A constant pointer to the iterator.
+   * @return The byte size of one element (non-zero for a valid iterator).
+   */
+  size_t (*element_size)(const tk_iterator_t *self);
 
   /**
    * @brief Advances the iterator 'self' to the next element.
@@ -186,8 +204,8 @@ typedef struct {
  * TK_DEFINE_RANDOM_ACCESS_ITERATOR_VTABLE for the random-access variant).
  *
  * @param PREFIX The unique prefix for the iterator's static functions
- * (e.g., `tk_list_iter`). The prefix MUST define `_advance`, `_get`, `_equal`,
- * `_clone` and `_retreat`.
+ * (e.g., `tk_list_iter`). The prefix MUST define `_element_size`, `_advance`,
+ * `_get`, `_equal`, `_clone` and `_retreat`.
  * @param CATEGORY The `tk_iter_category_t` for this iterator. Must be
  * TK_ITER_BIDIRECTIONAL.
  * @param TYPENAME A string literal for this iterator's type
@@ -196,6 +214,7 @@ typedef struct {
 #define TK_DEFINE_ITERATOR_VTABLE(PREFIX, CATEGORY, TYPENAME)                  \
   {.category = (CATEGORY),                                                     \
    .type_name = (TYPENAME),                                                    \
+   .element_size = PREFIX##_element_size,                                      \
    .advance = PREFIX##_advance,                                                \
    .get = PREFIX##_get,                                                        \
    .equal = PREFIX##_equal,                                                    \
@@ -217,13 +236,14 @@ typedef struct {
  * neither O(1) offset movement nor O(1) distance.
  *
  * @param PREFIX The unique prefix for the iterator's static functions. The
- * prefix MUST define `_advance`, `_get`, `_equal` and `_clone` (but no
- * `_retreat`).
+ * prefix MUST define `_element_size`, `_advance`, `_get`, `_equal` and
+ * `_clone` (but no `_retreat`).
  * @param TYPENAME A string literal for this iterator's type.
  */
 #define TK_DEFINE_FORWARD_ITERATOR_VTABLE(PREFIX, TYPENAME)                    \
   {.category = TK_ITER_FORWARD,                                                \
    .type_name = (TYPENAME),                                                    \
+   .element_size = PREFIX##_element_size,                                      \
    .advance = PREFIX##_advance,                                                \
    .get = PREFIX##_get,                                                        \
    .equal = PREFIX##_equal,                                                    \
@@ -245,13 +265,14 @@ typedef struct {
  * rejects for a random-access category.
  *
  * @param PREFIX The unique prefix for the iterator's static functions. The
- * prefix MUST define `_advance`, `_get`, `_equal`, `_clone`, `_retreat`,
- * `_advance_by` and `_distance`.
+ * prefix MUST define `_element_size`, `_advance`, `_get`, `_equal`, `_clone`,
+ * `_retreat`, `_advance_by` and `_distance`.
  * @param TYPENAME A string literal for this iterator's type.
  */
 #define TK_DEFINE_RANDOM_ACCESS_ITERATOR_VTABLE(PREFIX, TYPENAME)              \
   {.category = TK_ITER_RANDOM_ACCESS,                                          \
    .type_name = (TYPENAME),                                                    \
+   .element_size = PREFIX##_element_size,                                      \
    .advance = PREFIX##_advance,                                                \
    .get = PREFIX##_get,                                                        \
    .equal = PREFIX##_equal,                                                    \
@@ -297,7 +318,8 @@ struct tk_iterator_t {
  * Asserts that all essential function pointers and metadata fields are
  * non-NULL, that `retreat` is present if and only if the category is at
  * least bidirectional, and that the two random-access slots are present if
- * and only if the category is random-access.
+ * and only if the category is random-access. The `element_size` accessor is
+ * mandatory for EVERY category.
  * @param vtable A pointer to the vtable to validate.
  */
 static inline void
@@ -309,6 +331,9 @@ tk_iterator_vtable_validate(const tk_iterator_vtable_t *vtable) {
   TK_ASSERT(vtable->equal != NULL);
   TK_ASSERT(vtable->clone != NULL);
   TK_ASSERT(vtable->type_name != NULL);
+  // Element size is part of the protocol for every category: an algorithm that
+  // moves elements has no other way to learn how many bytes one element is.
+  TK_ASSERT(vtable->element_size != NULL);
   // Bidirectional/random-access iterators must provide retreat...
   TK_ASSERT((vtable->category < TK_ITER_BIDIRECTIONAL) ||
             (vtable->retreat != NULL));
@@ -346,6 +371,34 @@ static inline void *tk_iter_get(const tk_iterator_t *iter) {
   if (iter->vtable == NULL)
     return NULL; // invalid iterator: no element
   return iter->vtable->get(iter);
+}
+
+/**
+ * @brief Returns the byte size of one element of the iterator's range.
+ * (Calls the vtable's 'element_size' function).
+ *
+ * This is the protocol-level answer to "how many bytes is one element?", and
+ * it is valid at every position, including end(): an empty range still reports
+ * the size of the elements it would have held. Algorithms that move elements
+ * (tk_algo_copy, tk_algo_swap, sorting) read it from the iterator instead of
+ * taking it as a caller argument.
+ *
+ * An invalid iterator (vtable == NULL) reports 0: there is no element, so there
+ * is no element size, and the caller can detect the invalid case without the
+ * helper dereferencing anything. Note that 0 is not a legal element size for a
+ * valid container (tk_vec_create / tk_list_create reject it), so the sentinel
+ * is unambiguous.
+ *
+ * @param iter A constant pointer to the iterator.
+ * @return The byte size of one element, or 0 if the iterator is invalid.
+ */
+static inline size_t tk_iter_element_size(const tk_iterator_t *iter) {
+  if (iter->vtable == NULL)
+    return 0; // invalid iterator: no element, no size
+  TK_ASSERT(iter->vtable->element_size != NULL);
+  if (iter->vtable->element_size == NULL) // release-time defence
+    return 0;
+  return iter->vtable->element_size(iter);
 }
 
 /**

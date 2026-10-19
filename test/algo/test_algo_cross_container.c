@@ -104,7 +104,7 @@ Test(algo_cross_container, copy_list_source_into_vec_destination) {
 
   // Source iterators come from the LIST; the output iterator from the VEC.
   tk_iterator_t ret = tk_algo_copy(tk_list_begin(src), tk_list_end(src),
-                                   tk_vec_begin(dst), sizeof(int));
+                                   tk_vec_begin(dst));
 
   int expected[] = {10, 20, 30, 40, 50};
   for (int i = 0; i < 5; ++i) {
@@ -152,7 +152,7 @@ Test(algo_cross_container, copy_vec_source_into_list_destination) {
   tk_list_t *dst = make_zero_list(5);
 
   tk_iterator_t ret = tk_algo_copy(tk_vec_begin(src), tk_vec_end(src),
-                                   tk_list_begin(dst), sizeof(int));
+                                   tk_list_begin(dst));
 
   int got[5] = {0};
   size_t n = list_to_array(dst, got, 5);

@@ -67,11 +67,12 @@ if(TOOLKIT_BUILD_TESTS)
   # New test files MUST be registered here or they will not be compiled.
   set(TOOLKIT_TEST_SOURCES
       test/core/test_headers.c test/core/test_iterator.c
-      test/core/test_iterator_random_access.c test/ds/test_vec.c
+      test/core/test_iterator_random_access.c
+      test/core/test_iterator_element_size.c test/ds/test_vec.c
       test/ds/test_list.c test/algo/test_vec_sequence.c
       test/algo/test_list_sequence.c test/algo/test_vec_algorithms.c
       test/algo/test_list_algorithms.c test/algo/test_algo_numeric.c
-      test/algo/test_algo_cross_container.c)
+      test/algo/test_algo_cross_container.c test/algo/test_algo_copy_swap.c)
 
   foreach(test_source IN LISTS TOOLKIT_TEST_SOURCES)
     get_filename_component(module_name ${test_source} NAME_WE)

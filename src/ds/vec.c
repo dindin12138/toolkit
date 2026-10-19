@@ -368,6 +368,19 @@ static void tk_vec_iter_clone(tk_iterator_t *dest, const tk_iterator_t *src) {
 }
 
 /**
+ * @brief (vtable) Returns the byte size of one element.
+ *
+ * Required for every iterator category. The size lives in the iterator's own
+ * state, so it is answerable at every position -- including end(), where there
+ * is no dereferenceable element but the range still has an element size.
+ */
+static size_t tk_vec_iter_element_size(const tk_iterator_t *self) {
+  const tk_vec_iter_state_t *state =
+      (const tk_vec_iter_state_t *)self->state.data;
+  return state->element_size;
+}
+
+/**
  * @brief The single, static vtable for all tk_vec_t iterators.
  *
  * This uses the TK_DEFINE_RANDOM_ACCESS_ITERATOR_VTABLE macro, which populates
@@ -402,6 +415,9 @@ tk_iterator_t tk_vec_begin(tk_vec_t *vec) {
 
 tk_iterator_t tk_vec_end(tk_vec_t *vec) {
   TK_ASSERT(vec);
+  // Validate here too: a caller that only ever asks for end() (e.g. an empty
+  // source range) must still be told about an incomplete vtable.
+  tk_iterator_vtable_validate(&g_vec_vtable);
   tk_iterator_t iter;
   // Point to the correct vtable
   iter.vtable = &g_vec_vtable;

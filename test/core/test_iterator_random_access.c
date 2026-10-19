@@ -293,11 +293,18 @@ static ptrdiff_t stub_distance(const tk_iterator_t *a,
   (void)b;
   return 0;
 }
+// Element size is mandatory for every category, so every stub vtable below
+// must supply it. The value is irrelevant: these stubs are only validated.
+static size_t stub_element_size(const tk_iterator_t *self) {
+  (void)self;
+  return 1;
+}
 
 // Illegal: RANDOM_ACCESS, but the advance_by slot is missing.
 static const tk_iterator_vtable_t g_bad_ra_no_advance_by = {
     .category = TK_ITER_RANDOM_ACCESS,
     .type_name = "bad_ra_no_advance_by",
+    .element_size = stub_element_size,
     .advance = stub_advance,
     .get = stub_get,
     .equal = stub_equal,
@@ -310,6 +317,7 @@ static const tk_iterator_vtable_t g_bad_ra_no_advance_by = {
 static const tk_iterator_vtable_t g_bad_ra_no_distance = {
     .category = TK_ITER_RANDOM_ACCESS,
     .type_name = "bad_ra_no_distance",
+    .element_size = stub_element_size,
     .advance = stub_advance,
     .get = stub_get,
     .equal = stub_equal,
@@ -322,6 +330,7 @@ static const tk_iterator_vtable_t g_bad_ra_no_distance = {
 static const tk_iterator_vtable_t g_bad_forward_with_slots = {
     .category = TK_ITER_FORWARD,
     .type_name = "bad_forward_with_slots",
+    .element_size = stub_element_size,
     .advance = stub_advance,
     .get = stub_get,
     .equal = stub_equal,
@@ -334,6 +343,7 @@ static const tk_iterator_vtable_t g_bad_forward_with_slots = {
 static const tk_iterator_vtable_t g_good_ra = {
     .category = TK_ITER_RANDOM_ACCESS,
     .type_name = "good_ra",
+    .element_size = stub_element_size,
     .advance = stub_advance,
     .get = stub_get,
     .equal = stub_equal,

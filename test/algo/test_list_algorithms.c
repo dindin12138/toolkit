@@ -168,7 +168,7 @@ Test(list_algo_suite2, copy_list_to_list_content_and_return) {
   tk_iterator_t src_end = tk_list_end(list_int);
   tk_iterator_t out = tk_list_begin(dst);
 
-  tk_iterator_t ret = tk_algo_copy(src_begin, src_end, out, sizeof(int));
+  tk_iterator_t ret = tk_algo_copy(src_begin, src_end, out);
 
   int got[5] = {0};
   size_t n = list_to_array(dst, got, 5);
@@ -195,7 +195,7 @@ Test(list_algo_suite2, copy_empty_range_returns_out) {
   tk_iterator_t out = tk_list_begin(dst);
   tk_iterator_t out_orig = out;
 
-  tk_iterator_t ret = tk_algo_copy(src_begin, src_end, out, sizeof(int));
+  tk_iterator_t ret = tk_algo_copy(src_begin, src_end, out);
 
   cr_assert(tk_iter_equal(&ret, &out_orig) == true,
             "copy of an empty range must return the incoming out iterator");
