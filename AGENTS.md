@@ -1,3 +1,9 @@
+## Language
+
+**English** for anything that lands in the repo or on GitHub: issue titles and bodies, specs, tickets, PR bodies, commit messages, code identifiers, code comments, `GLOSSARY.md`, ADRs. The repo is public.
+
+**Chinese** for the conversation: chat replies, explanations, summaries of what you did.
+
 ## Agent skills
 
 ### Issue tracker
