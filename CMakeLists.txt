@@ -73,7 +73,7 @@ if(TOOLKIT_BUILD_TESTS)
       test/algo/test_list_sequence.c test/algo/test_vec_algorithms.c
       test/algo/test_list_algorithms.c       test/algo/test_algo_numeric.c
       test/algo/test_algo_cross_container.c test/algo/test_algo_copy_swap.c
-      test/algo/test_algo_heap.c)
+      test/algo/test_algo_heap.c test/algo/test_algo_sort.c)
 
   foreach(test_source IN LISTS TOOLKIT_TEST_SOURCES)
     get_filename_component(module_name ${test_source} NAME_WE)
@@ -90,24 +90,28 @@ if(TOOLKIT_BUILD_TESTS)
     add_test(NAME ${test_target} COMMAND ${test_target})
   endforeach()
 
-  # --- Release-contract target (heap family, issue #3) ---
-  # The heap's caller-violation contract has two halves: debug builds assert,
-  # release builds return without touching the range. The debug half is covered
-  # by test_algo_heap.c, which cannot observe the release half because
-  # assertions are enabled there. This target compiles the release half with
-  # NDEBUG so the silent early return is pinned by a test rather than only by a
-  # comment. It is deliberately outside the loop above: no other suite needs a
-  # second, assertion-free build.
-  add_executable(criterion_test_algo_heap_release
-                 test/algo/test_algo_heap_release.c)
-  target_include_directories(criterion_test_algo_heap_release
-                             PRIVATE ${Criterion_INCLUDE_DIRS})
-  target_link_libraries(criterion_test_algo_heap_release
-                        PRIVATE tk ${Criterion_LIBRARIES})
-  target_compile_options(criterion_test_algo_heap_release
-                         PRIVATE ${TOOLKIT_WARNING_FLAGS}
-                                 ${TOOLKIT_TEST_ONLY_WERROR_FLAGS})
-  target_compile_definitions(criterion_test_algo_heap_release PRIVATE NDEBUG)
-  add_test(NAME criterion_test_algo_heap_release
-           COMMAND criterion_test_algo_heap_release)
+  # --- Release-contract targets (heap family, issue #3; sort, issue #4) ---
+  # A caller violation (a range without random access, a NULL comparator) has
+  # two halves: debug builds assert, release builds return without touching the
+  # range. The debug half is covered by the regular suites, which cannot observe
+  # the release half because assertions are enabled there. These targets compile
+  # the release half with NDEBUG so the silent early return is pinned by a test
+  # rather than only by a comment. They are deliberately outside the loop above:
+  # no other suite needs a second, assertion-free build.
+  set(TOOLKIT_RELEASE_TEST_SOURCES test/algo/test_algo_heap_release.c
+                                   test/algo/test_algo_sort_release.c)
+
+  foreach(test_source IN LISTS TOOLKIT_RELEASE_TEST_SOURCES)
+    get_filename_component(module_name ${test_source} NAME_WE)
+
+    set(test_target "criterion_${module_name}")
+
+    add_executable(${test_target} ${test_source})
+    target_include_directories(${test_target} PRIVATE ${Criterion_INCLUDE_DIRS})
+    target_link_libraries(${test_target} PRIVATE tk ${Criterion_LIBRARIES})
+    target_compile_options(${test_target} PRIVATE ${TOOLKIT_WARNING_FLAGS}
+                                                  ${TOOLKIT_TEST_ONLY_WERROR_FLAGS})
+    target_compile_definitions(${test_target} PRIVATE NDEBUG)
+    add_test(NAME ${test_target} COMMAND ${test_target})
+  endforeach()
 endif()

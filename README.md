@@ -10,7 +10,7 @@ This project is my journey to create such a toolkit. My goal is to build a set o
 
 This library provides a set of generic, easy-to-use data structures and algorithms.
 
-The main design feature is a **polymorphic iterator system**, inspired by the C++ STL. This allows me to write generic algorithms (like `tk_algo_find_if`, and in the future `sort`, etc.) that can operate on any data structure in the toolkit, without needing to know the container's internal details.
+The main design feature is a **polymorphic iterator system**, inspired by the C++ STL. This allows me to write generic algorithms (like `tk_algo_find_if` and `tk_algo_sort`) that can operate on any data structure in the toolkit, without needing to know the container's internal details.
 
 To get started quickly and build upon battle-tested code, the initial data structures are implemented as wrappers around a well-known, high-quality, single-header library: [stb](https://github.com/nothings/stb) `stb_ds.h`. In the future, other structures might be added by wrapping other libraries or by implementing them from scratch.
 
@@ -51,6 +51,19 @@ To get started quickly and build upon battle-tested code, the initial data struc
   - `tk_algo_sort_heap` — drain a heap into ascending order (heapsort);
   - `tk_algo_is_heap` — check the heap property; `sort_heap` asserts it in
     debug builds, because draining a non-heap yields silent garbage.
+- The sort family (`<tk/algo/sort.h>`), operating in place on any range with
+  random access, without allocating and without copying the data anywhere:
+  - `tk_algo_sort` — order a range into the order the comparator dictates. It
+    is an introsort: quicksort with a median-of-three pivot and a three-way
+    partition, heapsort once the recursion budget is spent, insertion sort to
+    finish. Worst case O(n log n) for every input, logarithmic recursion depth,
+    and linear on a range whose elements all compare equal.
+  - `tk_algo_sort` is **not stable**: equal elements may end up in any order.
+    Stability would need O(n) scratch space, and this sort allocates nothing
+    (ADR-0002).
+  - A range without random access is a debug assertion; in a release build the
+    call returns and leaves the range untouched, silently. The header carries
+    that as a warning section.
 - The umbrella header `<tk/algo/algo.h>` includes every algorithm module.
 - Algorithms are container-agnostic: the same call works across containers
   (e.g. copying a `tk_list_t` into a `tk_vec_t`).
@@ -101,7 +114,7 @@ ctest --test-dir build-asan --output-on-failure
 As I learn more and my needs for future projects grow, I plan to:
 
 - Add more data structures, such as a hash map.
-- Expand the algorithm library further (sorting, and more `<numeric>`
-  algorithms such as `reduce` / `partial_sum`); copying and transforming are
-  already available.
+- Expand the algorithm library further (more `<numeric>` algorithms such as
+  `reduce` / `partial_sum`); copying, transforming, the heap family and sorting
+  are already available.
 - Continuously refine the API to make it as clean and useful as possible for my own use.

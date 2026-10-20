@@ -4,8 +4,8 @@
  *
  * @details
  * This file is the primary include for the tk_algo module. It includes all
- * available algorithm headers (sequence, numeric, heap, and future sorting,
- * etc.) for ease of use.
+ * available algorithm headers (sequence, numeric, heap, sort, and future
+ * modules, etc.) for ease of use.
  *
  * A user can simply #include <tk/algo/algo.h> to get all generic
  * algorithms provided by the toolkit.
@@ -40,6 +40,11 @@
  *                         property over the shortened range (caller removes)
  *  - tk_algo_sort_heap  : drain a heap into ascending order
  *  - tk_algo_is_heap    : report whether a range satisfies the heap property
+ *
+ * Sorting (<tk/algo/sort.h>), requiring RANDOM_ACCESS iterators:
+ *  - tk_algo_sort       : order a range in place into the order the comparator
+ *                         dictates (introsort: worst case O(n log n), no
+ *                         allocation, NOT stable)
  */
 #ifndef TOOLKIT_ALGO_ALGO_H
 #define TOOLKIT_ALGO_ALGO_H
@@ -48,5 +53,6 @@
 #include <tk/algo/heap.h>
 #include <tk/algo/numeric.h>
 #include <tk/algo/sequence.h>
+#include <tk/algo/sort.h>
 
 #endif // TOOLKIT_ALGO_ALGO_H
