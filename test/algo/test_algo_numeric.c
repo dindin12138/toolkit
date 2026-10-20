@@ -11,7 +11,7 @@
 
 #include <criterion/criterion.h>
 #include <criterion/new/assert.h>
-#include <tk/algo/algo.h> // umbrella: sequence.h + numeric.h
+#include <tk/algo/algo.h> // umbrella: sequence.h + numeric.h + heap.h
 #include <tk/core/iterator.h>
 #include <tk/ds/list.h>
 #include <tk/ds/vec.h>

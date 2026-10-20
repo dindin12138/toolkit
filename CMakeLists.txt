@@ -71,8 +71,9 @@ if(TOOLKIT_BUILD_TESTS)
       test/core/test_iterator_element_size.c test/ds/test_vec.c
       test/ds/test_list.c test/algo/test_vec_sequence.c
       test/algo/test_list_sequence.c test/algo/test_vec_algorithms.c
-      test/algo/test_list_algorithms.c test/algo/test_algo_numeric.c
-      test/algo/test_algo_cross_container.c test/algo/test_algo_copy_swap.c)
+      test/algo/test_list_algorithms.c       test/algo/test_algo_numeric.c
+      test/algo/test_algo_cross_container.c test/algo/test_algo_copy_swap.c
+      test/algo/test_algo_heap.c)
 
   foreach(test_source IN LISTS TOOLKIT_TEST_SOURCES)
     get_filename_component(module_name ${test_source} NAME_WE)
@@ -88,4 +89,25 @@ if(TOOLKIT_BUILD_TESTS)
 
     add_test(NAME ${test_target} COMMAND ${test_target})
   endforeach()
+
+  # --- Release-contract target (heap family, issue #3) ---
+  # The heap's caller-violation contract has two halves: debug builds assert,
+  # release builds return without touching the range. The debug half is covered
+  # by test_algo_heap.c, which cannot observe the release half because
+  # assertions are enabled there. This target compiles the release half with
+  # NDEBUG so the silent early return is pinned by a test rather than only by a
+  # comment. It is deliberately outside the loop above: no other suite needs a
+  # second, assertion-free build.
+  add_executable(criterion_test_algo_heap_release
+                 test/algo/test_algo_heap_release.c)
+  target_include_directories(criterion_test_algo_heap_release
+                             PRIVATE ${Criterion_INCLUDE_DIRS})
+  target_link_libraries(criterion_test_algo_heap_release
+                        PRIVATE tk ${Criterion_LIBRARIES})
+  target_compile_options(criterion_test_algo_heap_release
+                         PRIVATE ${TOOLKIT_WARNING_FLAGS}
+                                 ${TOOLKIT_TEST_ONLY_WERROR_FLAGS})
+  target_compile_definitions(criterion_test_algo_heap_release PRIVATE NDEBUG)
+  add_test(NAME criterion_test_algo_heap_release
+           COMMAND criterion_test_algo_heap_release)
 endif()

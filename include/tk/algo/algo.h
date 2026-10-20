@@ -4,8 +4,8 @@
  *
  * @details
  * This file is the primary include for the tk_algo module. It includes all
- * available algorithm headers (sequence, numeric, and future sorting, etc.)
- * for ease of use.
+ * available algorithm headers (sequence, numeric, heap, and future sorting,
+ * etc.) for ease of use.
  *
  * A user can simply #include <tk/algo/algo.h> to get all generic
  * algorithms provided by the toolkit.
@@ -32,11 +32,20 @@
  * Numeric algorithms (<tk/algo/numeric.h>):
  *  - tk_algo_accumulate : fold the range into a caller-owned accumulator
  *                         (returns void; the result stays in the caller's *acc)
+ *
+ * Heap algorithms (<tk/algo/heap.h>), all requiring RANDOM_ACCESS iterators:
+ *  - tk_algo_make_heap  : rearrange a range into a max-heap, in place, linear
+ *  - tk_algo_push_heap  : sift a newly appended last element up into the heap
+ *  - tk_algo_pop_heap   : move the maximum to the last position and restore the
+ *                         property over the shortened range (caller removes)
+ *  - tk_algo_sort_heap  : drain a heap into ascending order
+ *  - tk_algo_is_heap    : report whether a range satisfies the heap property
  */
 #ifndef TOOLKIT_ALGO_ALGO_H
 #define TOOLKIT_ALGO_ALGO_H
 
 // Include all algorithm modules
+#include <tk/algo/heap.h>
 #include <tk/algo/numeric.h>
 #include <tk/algo/sequence.h>
 

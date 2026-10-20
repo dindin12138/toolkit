@@ -26,6 +26,9 @@ To get started quickly and build upon battle-tested code, the initial data struc
 - Random-access protocol support: `tk_iter_advance_by` (O(1) offset movement)
   and `tk_iter_distance` (O(1) element distance), advertised only by
   random-access iterators.
+- A three-way comparator type (`tk_comparator_t`), used by every algorithm that
+  reorders a range: it follows `qsort`'s convention rather than the STL's
+  two-way predicate, so equality is reportable in one call.
 - Generic sequence algorithms (`<tk/algo/sequence.h>`), all operating on the
   polymorphic iterator interface:
   - `tk_algo_find_if` — first element matching a predicate;
@@ -38,6 +41,16 @@ To get started quickly and build upon battle-tested code, the initial data struc
     for any element size, without allocating.
 - Generic numeric algorithms (`<tk/algo/numeric.h>`):
   - `tk_algo_accumulate` — fold a range into a caller-owned accumulator.
+- The heap family (`<tk/algo/heap.h>`), operating in place on any range with
+  random access, without allocating and without copying the data anywhere:
+  - `tk_algo_make_heap` — rearrange an arbitrary range into a max-heap in
+    linear time;
+  - `tk_algo_push_heap` — sift a newly appended element up into the heap;
+  - `tk_algo_pop_heap` — move the maximum to the last position and restore the
+    property over the shortened range, leaving removal to the caller;
+  - `tk_algo_sort_heap` — drain a heap into ascending order (heapsort);
+  - `tk_algo_is_heap` — check the heap property; `sort_heap` asserts it in
+    debug builds, because draining a non-heap yields silent garbage.
 - The umbrella header `<tk/algo/algo.h>` includes every algorithm module.
 - Algorithms are container-agnostic: the same call works across containers
   (e.g. copying a `tk_list_t` into a `tk_vec_t`).

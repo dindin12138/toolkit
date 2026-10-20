@@ -37,4 +37,27 @@ typedef bool tk_bool;
  */
 typedef void (*tk_element_destroyer_t)(void *element_ptr);
 
+/**
+ * @brief Signature of a user-supplied three-way comparator.
+ *
+ * Reports the ordering of two elements in a single call: negative when `a`
+ * orders before `b`, zero when they are equivalent, positive when `a` orders
+ * after `b`. This is the C standard library's `qsort` convention, not the
+ * STL's two-way "is a less than b" predicate, because algorithms that reorder a
+ * range must recognise equal elements (see ADR-0003). It is deliberately a
+ * different type from the two-way predicates the sequence algorithms take: a
+ * predicate answers a question about one element, a comparator orders two.
+ *
+ * The comparator must implement a strict weak ordering; violating that is the
+ * caller's responsibility and makes the result undefined.
+ *
+ * @param a A pointer to the first element.
+ * @param b A pointer to the second element.
+ * @return A negative value, zero, or a positive value.
+ *
+ * @note Like tk_element_destroyer_t, this is the single canonical definition
+ * for the whole toolkit; modules MUST NOT redefine it.
+ */
+typedef int (*tk_comparator_t)(const void *a, const void *b);
+
 #endif // TOOLKIT_CORE_TYPES_H
